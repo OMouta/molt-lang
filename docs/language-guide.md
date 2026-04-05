@@ -158,6 +158,9 @@ Supported matching forms:
 `show(x)`
 : Return a stable display string.
 
+`read_file(path)`
+: Read a file from disk and return its contents as a string. The path must be a non-empty string.
+
 `print(x)`
 : Write the `show(x)` form followed by a newline.
 

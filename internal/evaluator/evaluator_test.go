@@ -146,6 +146,8 @@ func TestEvaluateRuntimeErrors(t *testing.T) {
 		{name: "invalid mutation operand", input: "code = @{ 1 }\ncode ~ 1", message: `expected mutation value, got "number"`},
 		{name: "invalid len target", input: "len(1)", message: `len expects list or string, got "number"`},
 		{name: "invalid push target", input: "push(1, 2)", message: `push expects list as first argument, got "number"`},
+		{name: "invalid read_file target", input: "read_file(1)", message: `read_file expects string path, got "number"`},
+		{name: "empty read_file path", input: `read_file("")`, message: "read_file path cannot be empty"},
 	}
 
 	for _, tc := range tests {
@@ -166,6 +168,18 @@ func TestEvaluateStdinReadFailure(t *testing.T) {
 	runtimeErr := expectRuntimeError(t, err)
 	if runtimeErr.Diagnostic().Message != "stdin failed: boom" {
 		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, "stdin failed: boom")
+	}
+}
+
+func TestEvaluateReadFileFailure(t *testing.T) {
+	evaluator := NewWithRuntime(nil, nil, nil, func(path string) ([]byte, error) {
+		return nil, errors.New("boom")
+	})
+
+	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), "read_file_failure.molt", `read_file("missing.txt")`)
+	runtimeErr := expectRuntimeError(t, err)
+	if runtimeErr.Diagnostic().Message != `read_file failed for "missing.txt": boom` {
+		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, `read_file failed for "missing.txt": boom`)
 	}
 }
 
@@ -418,7 +432,13 @@ func TestEvalReexecutesFreshlyOnEachCall(t *testing.T) {
 
 func TestEvaluateBuiltins(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
-	result, err := evalStringWithEvaluator(NewWithContext(bytes.NewBufferString("hello\nworld"), nil, []string{"alpha", "beta"}), env, "builtins.molt", ""+
+	result, err := evalStringWithEvaluator(NewWithRuntime(bytes.NewBufferString("hello\nworld"), nil, []string{"alpha", "beta"}, func(path string) ([]byte, error) {
+		if path != "note.txt" {
+			return nil, errors.New("unexpected path")
+		}
+
+		return []byte("file contents"), nil
+	}), env, "builtins.molt", ""+
 		"xs = [1]\n"+
 		"same = push(xs, 2)\n"+
 		"fn add(a, b) = a + b\n"+
@@ -427,6 +447,8 @@ func TestEvaluateBuiltins(t *testing.T) {
 		"cli1 = args()\n"+
 		"cli2 = args()\n"+
 		"push(cli1, \"extra\")\n"+
+		"file1 = read_file(\"note.txt\")\n"+
+		"file2 = read_file(\"note.txt\")\n"+
 		"input1 = stdin()\n"+
 		"input2 = stdin()\n"+
 		"[\n"+
@@ -448,6 +470,8 @@ func TestEvaluateBuiltins(t *testing.T) {
 		"  show(add),\n"+
 		"  cli1,\n"+
 		"  cli2,\n"+
+		"  file1,\n"+
+		"  file2,\n"+
 		"  input1,\n"+
 		"  input2\n"+
 		"]",
@@ -457,8 +481,8 @@ func TestEvaluateBuiltins(t *testing.T) {
 	}
 
 	values := expectValue[*runtime.ListValue](t, result)
-	if len(values.Elements) != 20 {
-		t.Fatalf("result length = %d, want 20", len(values.Elements))
+	if len(values.Elements) != 22 {
+		t.Fatalf("result length = %d, want 22", len(values.Elements))
 	}
 
 	wantTypes := []string{
@@ -516,11 +540,19 @@ func TestEvaluateBuiltins(t *testing.T) {
 		t.Fatalf("fresh cli2 = %q, want %q", runtime.ShowValue(got), `["alpha", "beta"]`)
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[18]); got.Value != "hello\nworld" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[18]); got.Value != "file contents" {
+		t.Fatalf("read_file first = %q, want %q", got.Value, "file contents")
+	}
+
+	if got := expectValue[*runtime.StringValue](t, values.Elements[19]); got.Value != "file contents" {
+		t.Fatalf("read_file second = %q, want %q", got.Value, "file contents")
+	}
+
+	if got := expectValue[*runtime.StringValue](t, values.Elements[20]); got.Value != "hello\nworld" {
 		t.Fatalf("stdin() first read = %q, want %q", got.Value, "hello\nworld")
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[19]); got.Value != "" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[21]); got.Value != "" {
 		t.Fatalf("stdin() second read = %q, want empty string", got.Value)
 	}
 }

@@ -12,9 +12,10 @@ import (
 )
 
 type Evaluator struct {
-	output io.Writer
-	input  io.Reader
-	args   []string
+	output   io.Writer
+	input    io.Reader
+	args     []string
+	readFile func(string) ([]byte, error)
 }
 
 func New(output io.Writer) *Evaluator {
@@ -33,6 +34,15 @@ func NewWithContext(input io.Reader, output io.Writer, args []string) *Evaluator
 		input:  input,
 		output: output,
 		args:   append([]string(nil), args...),
+	}
+}
+
+func NewWithRuntime(input io.Reader, output io.Writer, args []string, readFile func(string) ([]byte, error)) *Evaluator {
+	return &Evaluator{
+		input:    input,
+		output:   output,
+		args:     append([]string(nil), args...),
+		readFile: readFile,
 	}
 }
 
@@ -501,6 +511,7 @@ func (e *Evaluator) evalCall(env *runtime.Environment, expr *ast.CallExpr) (runt
 			Arguments:    e.arguments(),
 			CallSpan:     expr.Span(),
 			EvalCode:     e.evalCodeValue,
+			ReadFile:     e.readFileFunc(),
 			Input:        e.inputReader(),
 			Output:       e.outputWriter(),
 		}, args)
@@ -573,6 +584,14 @@ func (e *Evaluator) ensureBuiltins(env *runtime.Environment) {
 			FunctionName: "show",
 			Arity:        1,
 			Impl:         showBuiltin,
+		})
+	}
+
+	if _, ok := env.Get("read_file"); !ok {
+		env.Define("read_file", &runtime.NativeFunctionValue{
+			FunctionName: "read_file",
+			Arity:        1,
+			Impl:         readFileBuiltin,
 		})
 	}
 
@@ -671,6 +690,35 @@ func showBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value,
 	return &runtime.StringValue{Value: runtime.ShowValue(args[0])}, nil
 }
 
+func readFileBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	path, ok := args[0].(*runtime.StringValue)
+	if !ok {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("read_file expects string path, got %q", args[0].TypeName()),
+			ctx.CallSpan,
+		)
+	}
+
+	if path.Value == "" {
+		return nil, diagnostic.NewRuntimeError("read_file path cannot be empty", ctx.CallSpan)
+	}
+
+	reader := ctx.ReadFile
+	if reader == nil {
+		reader = os.ReadFile
+	}
+
+	data, err := reader(path.Value)
+	if err != nil {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("read_file failed for %q: %v", path.Value, err),
+			ctx.CallSpan,
+		)
+	}
+
+	return &runtime.StringValue{Value: string(data)}, nil
+}
+
 func printBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
 	if _, err := fmt.Fprintln(outputWriter(ctx.Output), runtime.ShowValue(args[0])); err != nil {
 		return nil, err
@@ -701,6 +749,14 @@ func (e *Evaluator) inputReader() io.Reader {
 
 func (e *Evaluator) arguments() []string {
 	return append([]string(nil), e.args...)
+}
+
+func (e *Evaluator) readFileFunc() func(string) ([]byte, error) {
+	if e.readFile != nil {
+		return e.readFile
+	}
+
+	return os.ReadFile
 }
 
 func inputReader(reader io.Reader) io.Reader {

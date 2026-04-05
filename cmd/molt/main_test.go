@@ -169,6 +169,30 @@ func TestRunPassesCommandLineArgumentsToProgram(t *testing.T) {
 	}
 }
 
+func TestRunExecutesReadFileBuiltin(t *testing.T) {
+	dir := t.TempDir()
+	dataPath := filepath.Join(dir, "data.txt")
+	programPath := filepath.Join(dir, "read_file.molt")
+	writeTestFile(t, dataPath, "hello from disk")
+	writeTestFile(t, programPath, "print(read_file(\""+filepath.ToSlash(dataPath)+"\"))")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	exit := run([]string{programPath}, strings.NewReader(""), &stdout, &stderr)
+
+	if exit != 0 {
+		t.Fatalf("exit code = %d, want 0", exit)
+	}
+
+	if stdout.String() != "\"hello from disk\"\n" {
+		t.Fatalf("stdout = %q, want %q", stdout.String(), "\"hello from disk\"\n")
+	}
+
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
 func TestRunStartsREPLWhenNoFileIsProvided(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
