@@ -418,12 +418,15 @@ func TestEvalReexecutesFreshlyOnEachCall(t *testing.T) {
 
 func TestEvaluateBuiltins(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
-	result, err := evalStringWithEvaluator(NewWithIO(bytes.NewBufferString("hello\nworld"), nil), env, "builtins.molt", ""+
+	result, err := evalStringWithEvaluator(NewWithContext(bytes.NewBufferString("hello\nworld"), nil, []string{"alpha", "beta"}), env, "builtins.molt", ""+
 		"xs = [1]\n"+
 		"same = push(xs, 2)\n"+
 		"fn add(a, b) = a + b\n"+
 		"code = @{ 1 + 2 }\n"+
 		"mut = ~{ x -> y\n1 -> 2 }\n"+
+		"cli1 = args()\n"+
+		"cli2 = args()\n"+
+		"push(cli1, \"extra\")\n"+
 		"input1 = stdin()\n"+
 		"input2 = stdin()\n"+
 		"[\n"+
@@ -443,6 +446,8 @@ func TestEvaluateBuiltins(t *testing.T) {
 		"  show(code),\n"+
 		"  show(mut),\n"+
 		"  show(add),\n"+
+		"  cli1,\n"+
+		"  cli2,\n"+
 		"  input1,\n"+
 		"  input2\n"+
 		"]",
@@ -452,8 +457,8 @@ func TestEvaluateBuiltins(t *testing.T) {
 	}
 
 	values := expectValue[*runtime.ListValue](t, result)
-	if len(values.Elements) != 18 {
-		t.Fatalf("result length = %d, want 18", len(values.Elements))
+	if len(values.Elements) != 20 {
+		t.Fatalf("result length = %d, want 20", len(values.Elements))
 	}
 
 	wantTypes := []string{
@@ -503,11 +508,19 @@ func TestEvaluateBuiltins(t *testing.T) {
 		t.Fatalf("show(add) = %q, want %q", got.Value, "fn add(a, b) = (a + b)")
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[16]); got.Value != "hello\nworld" {
+	if got := expectValue[*runtime.ListValue](t, values.Elements[16]); runtime.ShowValue(got) != `["alpha", "beta", "extra"]` {
+		t.Fatalf("mutated cli1 = %q, want %q", runtime.ShowValue(got), `["alpha", "beta", "extra"]`)
+	}
+
+	if got := expectValue[*runtime.ListValue](t, values.Elements[17]); runtime.ShowValue(got) != `["alpha", "beta"]` {
+		t.Fatalf("fresh cli2 = %q, want %q", runtime.ShowValue(got), `["alpha", "beta"]`)
+	}
+
+	if got := expectValue[*runtime.StringValue](t, values.Elements[18]); got.Value != "hello\nworld" {
 		t.Fatalf("stdin() first read = %q, want %q", got.Value, "hello\nworld")
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[17]); got.Value != "" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[19]); got.Value != "" {
 		t.Fatalf("stdin() second read = %q, want empty string", got.Value)
 	}
 }

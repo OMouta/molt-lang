@@ -14,6 +14,7 @@ import (
 type Evaluator struct {
 	output io.Writer
 	input  io.Reader
+	args   []string
 }
 
 func New(output io.Writer) *Evaluator {
@@ -24,6 +25,14 @@ func NewWithIO(input io.Reader, output io.Writer) *Evaluator {
 	return &Evaluator{
 		input:  input,
 		output: output,
+	}
+}
+
+func NewWithContext(input io.Reader, output io.Writer, args []string) *Evaluator {
+	return &Evaluator{
+		input:  input,
+		output: output,
+		args:   append([]string(nil), args...),
 	}
 }
 
@@ -489,6 +498,7 @@ func (e *Evaluator) evalCall(env *runtime.Environment, expr *ast.CallExpr) (runt
 		result, err := fn.Call(&runtime.CallContext{
 			FunctionName: fn.Name(),
 			Environment:  env,
+			Arguments:    e.arguments(),
 			CallSpan:     expr.Span(),
 			EvalCode:     e.evalCodeValue,
 			Input:        e.inputReader(),
@@ -531,6 +541,14 @@ func (e *Evaluator) ensureBuiltins(env *runtime.Environment) {
 			FunctionName: "type",
 			Arity:        1,
 			Impl:         typeBuiltin,
+		})
+	}
+
+	if _, ok := env.Get("args"); !ok {
+		env.Define("args", &runtime.NativeFunctionValue{
+			FunctionName: "args",
+			Arity:        0,
+			Impl:         argsBuiltin,
 		})
 	}
 
@@ -613,6 +631,15 @@ func typeBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value,
 	return &runtime.StringValue{Value: args[0].TypeName()}, nil
 }
 
+func argsBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	values := make([]runtime.Value, 0, len(ctx.Arguments))
+	for _, arg := range ctx.Arguments {
+		values = append(values, &runtime.StringValue{Value: arg})
+	}
+
+	return &runtime.ListValue{Elements: values}, nil
+}
+
 func lenBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
 	switch value := args[0].(type) {
 	case *runtime.ListValue:
@@ -670,6 +697,10 @@ func (e *Evaluator) outputWriter() io.Writer {
 
 func (e *Evaluator) inputReader() io.Reader {
 	return inputReader(e.input)
+}
+
+func (e *Evaluator) arguments() []string {
+	return append([]string(nil), e.args...)
 }
 
 func inputReader(reader io.Reader) io.Reader {

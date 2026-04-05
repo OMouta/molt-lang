@@ -89,12 +89,12 @@ func TestRunRejectsInvalidUsageAndMissingFiles(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	if exit := run(nil, strings.NewReader(""), &stdout, &stderr); exit != 1 {
+	if exit := run([]string{"--bad"}, strings.NewReader(""), &stdout, &stderr); exit != 1 {
 		t.Fatalf("usage exit code = %d, want 1", exit)
 	}
 
-	if stderr.String() != "usage: molt <file|->\n" {
-		t.Fatalf("usage stderr = %q, want %q", stderr.String(), "usage: molt <file|->\n")
+	if stderr.String() != "usage: molt [file|-] [args...]\n" {
+		t.Fatalf("usage stderr = %q, want %q", stderr.String(), "usage: molt [file|-] [args...]\n")
 	}
 
 	stdout.Reset()
@@ -113,14 +113,14 @@ func TestRunExecutesProgramFromStdin(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	exit := run([]string{"-"}, strings.NewReader("print(stdin())"), &stdout, &stderr)
+	exit := run([]string{"-", "hello", "world"}, strings.NewReader("print([stdin(), args()])"), &stdout, &stderr)
 
 	if exit != 0 {
 		t.Fatalf("exit code = %d, want 0", exit)
 	}
 
-	if stdout.String() != "\"\"\n" {
-		t.Fatalf("stdout = %q, want %q", stdout.String(), "\"\"\n")
+	if stdout.String() != "[\"\", [\"hello\", \"world\"]]\n" {
+		t.Fatalf("stdout = %q, want %q", stdout.String(), "[\"\", [\"hello\", \"world\"]]\n")
 	}
 
 	if stderr.Len() != 0 {
@@ -144,6 +144,79 @@ func TestRunReportsStdinReadFailures(t *testing.T) {
 
 	if !strings.Contains(stderr.String(), "failed to read source from stdin: boom") {
 		t.Fatalf("stderr = %q, want stdin read failure", stderr.String())
+	}
+}
+
+func TestRunPassesCommandLineArgumentsToProgram(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "args.molt")
+	writeTestFile(t, path, "print(args())")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	exit := run([]string{path, "alpha", "beta"}, strings.NewReader(""), &stdout, &stderr)
+
+	if exit != 0 {
+		t.Fatalf("exit code = %d, want 0", exit)
+	}
+
+	if stdout.String() != "[\"alpha\", \"beta\"]\n" {
+		t.Fatalf("stdout = %q, want %q", stdout.String(), "[\"alpha\", \"beta\"]\n")
+	}
+
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunStartsREPLWhenNoFileIsProvided(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	exit := run(nil, strings.NewReader("x = 1\nx + 2\n"), &stdout, &stderr)
+
+	if exit != 0 {
+		t.Fatalf("exit code = %d, want 0", exit)
+	}
+
+	if stdout.String() != "1\n3\n" {
+		t.Fatalf("stdout = %q, want %q", stdout.String(), "1\n3\n")
+	}
+
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunREPLSupportsMultilineInputAndContinuesAfterErrors(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	input := "" +
+		"{\n" +
+		"  1 + 2\n" +
+		"}\n" +
+		"len(1)\n" +
+		"a < b < c\n" +
+		"4 + 5\n"
+
+	exit := run(nil, strings.NewReader(input), &stdout, &stderr)
+
+	if exit != 0 {
+		t.Fatalf("exit code = %d, want 0", exit)
+	}
+
+	if stdout.String() != "3\n9\n" {
+		t.Fatalf("stdout = %q, want %q", stdout.String(), "3\n9\n")
+	}
+
+	errOut := stderr.String()
+	if !strings.Contains(errOut, `<repl>:1:1: runtime error: len expects list or string, got "number"`) {
+		t.Fatalf("stderr = %q, want runtime diagnostic", errOut)
+	}
+
+	if !strings.Contains(errOut, `<repl>:1:7: parse error: chained relational operators are not allowed`) {
+		t.Fatalf("stderr = %q, want parse diagnostic", errOut)
 	}
 }
 

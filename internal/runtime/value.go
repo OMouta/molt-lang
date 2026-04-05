@@ -92,6 +92,7 @@ func (v *MutationValue) TypeName() string { return typenames.Mutation }
 type CallContext struct {
 	FunctionName string
 	Environment  *Environment
+	Arguments    []string
 	CallSpan     source.Span
 	EvalCode     func(*CodeValue) (Value, error)
 	Output       io.Writer

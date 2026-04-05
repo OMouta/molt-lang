@@ -33,16 +33,28 @@ The CLI executes one source file at a time:
 go run ./cmd/molt ./examples/basic_mutation.molt
 ```
 
+Additional command-line arguments are exposed inside the program through `args()`:
+
+```powershell
+go run ./cmd/molt ./examples/basic_mutation.molt alpha beta
+```
+
 It can also read a program from standard input:
 
 ```powershell
 'print(1 + 2)' | go run ./cmd/molt -
 ```
 
+If you run `molt` without a file, it starts a REPL:
+
+```powershell
+go run ./cmd/molt
+```
+
 Usage:
 
 ```txt
-molt <file|->
+molt [file|-] [args...]
 ```
 
 Exit codes:

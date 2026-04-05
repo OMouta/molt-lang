@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"molt/internal/cli/exitcode"
 	"molt/internal/diagnostic"
@@ -18,12 +19,17 @@ func main() {
 }
 
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	if len(args) != 1 {
-		fmt.Fprintln(stderr, "usage: molt <file|->")
+	if len(args) == 0 {
+		return runREPL(stdin, stdout, stderr, nil)
+	}
+
+	if isUnsupportedOption(args[0]) {
+		fmt.Fprintln(stderr, "usage: molt [file|-] [args...]")
 		return exitcode.Usage
 	}
 
 	path := args[0]
+	programArgs := args[1:]
 	text, err := readProgramSource(path, stdin)
 	if err != nil {
 		if path == "-" {
@@ -40,7 +46,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return reportError(err, stderr)
 	}
 
-	_, err = evaluator.NewWithIO(stdin, stdout).EvalProgram(program, runtime.NewEnvironment(nil))
+	_, err = evaluator.NewWithContext(stdin, stdout, programArgs).EvalProgram(program, runtime.NewEnvironment(nil))
 	if err != nil {
 		return reportError(err, stderr)
 	}
@@ -63,6 +69,10 @@ func reportError(err error, stderr io.Writer) int {
 
 	fmt.Fprintf(stderr, "internal error: %v\n", err)
 	return exitcode.Internal
+}
+
+func isUnsupportedOption(arg string) bool {
+	return strings.HasPrefix(arg, "-") && arg != "-"
 }
 
 func readProgramSource(path string, stdin io.Reader) (string, error) {

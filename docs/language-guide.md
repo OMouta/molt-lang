@@ -146,6 +146,9 @@ Supported matching forms:
 `type(x)`
 : Return the canonical runtime type name.
 
+`args()`
+: Return a fresh list of command-line arguments passed after the script path. In REPL mode it returns `[]`.
+
 `len(x)`
 : Return the length of a list or the number of Unicode code points in a string.
 
@@ -160,6 +163,15 @@ Supported matching forms:
 
 `stdin()`
 : Read the remaining standard input as a string. If stdin has already been consumed, it returns `""`.
+
+## REPL
+
+Running `molt` with no file starts a stateful REPL.
+
+- each successful entry evaluates in the same environment as later entries
+- multiline forms such as blocks, quotes, mutation literals, and grouped expressions keep reading until they are complete
+- parse and runtime diagnostics are rendered, but the session stays alive
+- non-`nil` results are printed automatically
 
 ## Display
 
