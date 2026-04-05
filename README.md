@@ -10,11 +10,7 @@ Core primitives:
 eval(x)    # run quoted code
 ```
 
-This repository contains the finished v1 implementation in Go.
-
-## Version
-
-Current declared version: `1.0.0`
+> `@molt` is pre-alpha software. The language, implementation, and documentation are all in early stages of development. Expect breaking changes and incomplete features. Feedback and contributions are very welcome!
 
 ## Quick Start
 
