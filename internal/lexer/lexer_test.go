@@ -1,0 +1,210 @@
+package lexer
+
+import (
+	"testing"
+
+	"molt/internal/diagnostic"
+)
+
+func TestLexProducesFinalTokenStreamWithPayloadsAndEOF(t *testing.T) {
+	input := `
+# file header
+fn warp(code) = {
+  xs = [1, 2.5, "hi\n\"there\""]
+  if true and not false or nil == nil -> eval(code ~{ + -> * }) else -> push(xs, 3)
+}
+warp @{ 1 + 2 } ~ other != stuff <= more >= less < x > y
+`
+
+	tokens, err := Lex("sample.molt", input)
+	if err != nil {
+		t.Fatalf("Lex returned error: %v", err)
+	}
+
+	kinds := make([]Kind, len(tokens))
+	values := make([]string, len(tokens))
+
+	for i, token := range tokens {
+		kinds[i] = token.Kind
+		values[i] = token.Value
+	}
+
+	wantKinds := []Kind{
+		Fn, Identifier, LeftParen, Identifier, RightParen, Assign, LeftBrace,
+		Identifier, Assign, LeftBracket, Number, Comma, Number, Comma, String, RightBracket,
+		If, True, And, Not, False, Or, Nil, EqualEqual, Nil, Arrow,
+		Identifier, LeftParen, Identifier, MutationStart, Plus, Arrow, Star, RightBrace, RightParen,
+		Else, Arrow, Identifier, LeftParen, Identifier, Comma, Number, RightParen,
+		RightBrace,
+		Identifier, QuoteStart, Number, Plus, Number, RightBrace, Tilde, Identifier, BangEqual, Identifier, LessEqual, Identifier, GreaterEqual, Identifier, Less, Identifier, Greater, Identifier,
+		EOF,
+	}
+
+	if len(kinds) != len(wantKinds) {
+		t.Fatalf("token count = %d, want %d\nkinds: %#v", len(kinds), len(wantKinds), kinds)
+	}
+
+	for i := range wantKinds {
+		if kinds[i] != wantKinds[i] {
+			t.Fatalf("token[%d] kind = %s, want %s", i, kinds[i], wantKinds[i])
+		}
+	}
+
+	checkTokenValue(t, tokens[1], "warp")
+	checkTokenValue(t, tokens[3], "code")
+	checkTokenValue(t, tokens[10], "1")
+	checkTokenValue(t, tokens[12], "2.5")
+	checkTokenValue(t, tokens[14], "hi\n\"there\"")
+	checkTokenValue(t, tokens[26], "eval")
+	checkTokenValue(t, tokens[39], "xs")
+	checkTokenValue(t, tokens[41], "3")
+	checkTokenValue(t, tokens[44], "warp")
+	checkTokenValue(t, tokens[46], "1")
+	checkTokenValue(t, tokens[48], "2")
+	checkTokenValue(t, tokens[51], "other")
+
+	eof := tokens[len(tokens)-1]
+	if eof.Span.Start.Offset != eof.Span.End.Offset {
+		t.Fatalf("EOF token span should be empty, got [%d, %d)", eof.Span.Start.Offset, eof.Span.End.Offset)
+	}
+}
+
+func TestLexMaximalMunchForOperatorsAndIntroducers(t *testing.T) {
+	tokens, err := Lex("operators.molt", "@{ ~{ -> - == != <= >= < > = ~")
+	if err != nil {
+		t.Fatalf("Lex returned error: %v", err)
+	}
+
+	want := []Kind{
+		QuoteStart,
+		MutationStart,
+		Arrow,
+		Minus,
+		EqualEqual,
+		BangEqual,
+		LessEqual,
+		GreaterEqual,
+		Less,
+		Greater,
+		Assign,
+		Tilde,
+		EOF,
+	}
+
+	if len(tokens) != len(want) {
+		t.Fatalf("token count = %d, want %d", len(tokens), len(want))
+	}
+
+	for i := range want {
+		if tokens[i].Kind != want[i] {
+			t.Fatalf("token[%d] kind = %s, want %s", i, tokens[i].Kind, want[i])
+		}
+	}
+}
+
+func TestLexRejectsMalformedNumbers(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		message string
+		span    string
+	}{
+		{name: "identifier suffix", input: "12abc", message: `malformed number literal "12abc"`, span: "bad.molt:1:1"},
+		{name: "trailing dot", input: "1.", message: `malformed number literal "1."`, span: "bad.molt:1:1"},
+		{name: "extra dot", input: "1.2.3", message: `malformed number literal "1.2.3"`, span: "bad.molt:1:1"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Lex("bad.molt", tc.input)
+			parseErr := expectParseError(t, err)
+
+			if got := parseErr.Diagnostic().Message; got != tc.message {
+				t.Fatalf("message = %q, want %q", got, tc.message)
+			}
+
+			if got := parseErr.Diagnostic().Location(); got != tc.span {
+				t.Fatalf("location = %q, want %q", got, tc.span)
+			}
+		})
+	}
+}
+
+func TestLexRejectsMalformedStrings(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		message string
+		line    int
+		column  int
+	}{
+		{name: "unterminated eof", input: "\"oops", message: "unterminated string literal", line: 1, column: 1},
+		{name: "unterminated newline", input: "\"oops\nx", message: "unterminated string literal", line: 1, column: 1},
+		{name: "invalid escape", input: "\"\\x\"", message: "invalid escape sequence \\x", line: 1, column: 2},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Lex("string.molt", tc.input)
+			parseErr := expectParseError(t, err)
+			diag := parseErr.Diagnostic()
+
+			if diag.Message != tc.message {
+				t.Fatalf("message = %q, want %q", diag.Message, tc.message)
+			}
+
+			if diag.Span.Start.Line != tc.line || diag.Span.Start.Column != tc.column {
+				t.Fatalf(
+					"start = %d:%d, want %d:%d",
+					diag.Span.Start.Line,
+					diag.Span.Start.Column,
+					tc.line,
+					tc.column,
+				)
+			}
+		})
+	}
+}
+
+func TestLexRejectsUnexpectedCharacters(t *testing.T) {
+	tests := []struct {
+		input   string
+		message string
+	}{
+		{input: "@", message: "expected '{' after '@'"},
+		{input: "!", message: "unexpected character '!'"},
+		{input: "$", message: "unexpected character '$'"},
+	}
+
+	for _, tc := range tests {
+		_, err := Lex("bad.molt", tc.input)
+		parseErr := expectParseError(t, err)
+
+		if got := parseErr.Diagnostic().Message; got != tc.message {
+			t.Fatalf("input %q message = %q, want %q", tc.input, got, tc.message)
+		}
+	}
+}
+
+func checkTokenValue(t *testing.T, token Token, want string) {
+	t.Helper()
+
+	if token.Value != want {
+		t.Fatalf("token %s value = %q, want %q", token.Kind, token.Value, want)
+	}
+}
+
+func expectParseError(t *testing.T, err error) diagnostic.ParseError {
+	t.Helper()
+
+	if err == nil {
+		t.Fatalf("expected parse error, got nil")
+	}
+
+	parseErr, ok := err.(diagnostic.ParseError)
+	if !ok {
+		t.Fatalf("expected diagnostic.ParseError, got %T", err)
+	}
+
+	return parseErr
+}

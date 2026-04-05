@@ -1,0 +1,5 @@
+fn add(a, b) = a + b
+fn mul = add ~{ + -> * }
+
+print(add(2, 3))
+print(mul(2, 3))

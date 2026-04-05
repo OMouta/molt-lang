@@ -1,0 +1,12 @@
+bin/
+coverage.out
+dist/
+*.exe
+
+.archive/
+.idea/
+*.log
+*.tmp
+*.bak
+*.swp
+.DS_Store

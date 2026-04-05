@@ -1,0 +1,74 @@
+{
+  "name": "molt-vscode",
+  "displayName": "Molt Language Support",
+  "description": "Syntax highlighting, editor configuration, and file icons for .molt files.",
+  "version": "0.1.0",
+  "publisher": "molt-lang",
+  "homepage": "https://github.com/OMouta/molt-lang/tree/main/editors/vscode-molt",
+  "bugs": {
+    "url": "https://github.com/OMouta/molt-lang/issues"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "molt",
+    "language",
+    "syntax-highlighting",
+    "file-icon"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OMouta/molt-lang"
+  },
+  "icon": "icons/molt.png",
+  "files": [
+    "language-configuration.json",
+    "syntaxes/**",
+    "icons/**",
+    "scripts/**",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "check": "node ./scripts/validate-manifest.mjs",
+    "vscode:prepublish": "npm run check",
+    "package": "vsce package",
+    "publish:vsce": "vsce publish",
+    "watch:extension": "code ."
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.6.2"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "molt",
+        "aliases": [
+          "Molt",
+          "molt"
+        ],
+        "extensions": [
+          ".molt"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/molt.png",
+          "dark": "./icons/molt.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "molt",
+        "scopeName": "source.molt",
+        "path": "./syntaxes/molt.tmLanguage.json"
+      }
+    ]
+  }
+}

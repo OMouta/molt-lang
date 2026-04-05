@@ -1,0 +1,8 @@
+fn run(code, mutation) = eval(code ~ mutation)
+
+xs = []
+push(xs, run(@{ 2 + 3 }, ~{ + -> * }))
+push(xs, run(@{ len("molt") + 1 }, ~{ 1 -> 3 }))
+push(xs, type(@{ 0 }))
+
+print(xs)

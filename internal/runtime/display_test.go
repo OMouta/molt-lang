@@ -1,0 +1,101 @@
+package runtime
+
+import (
+	"testing"
+
+	"molt/internal/ast"
+)
+
+func TestShowValueFormatsPrimitiveAndCompactListValues(t *testing.T) {
+	list := &ListValue{
+		Elements: []Value{
+			&NumberValue{Value: 1},
+			&StringValue{Value: "ok"},
+			&BooleanValue{Value: true},
+			Nil,
+		},
+	}
+
+	if got := ShowValue(&NumberValue{Value: 3.5}); got != "3.5" {
+		t.Fatalf("number = %q, want %q", got, "3.5")
+	}
+
+	if got := ShowValue(&StringValue{Value: "hello\nworld"}); got != "\"hello\\nworld\"" {
+		t.Fatalf("string = %q, want %q", got, "\"hello\\nworld\"")
+	}
+
+	if got := ShowValue(list); got != `[1, "ok", true, nil]` {
+		t.Fatalf("list = %q, want %q", got, `[1, "ok", true, nil]`)
+	}
+}
+
+func TestShowValueFormatsFunctionsCodeMutationsAndNativeFunctions(t *testing.T) {
+	function := &UserFunctionValue{
+		Name:       "add",
+		Parameters: []string{"a", "b"},
+		Body: &ast.BinaryExpr{
+			Left:     &ast.Identifier{Name: "a"},
+			Operator: ast.BinaryAdd,
+			Right:    &ast.Identifier{Name: "b"},
+		},
+	}
+
+	code := &CodeValue{
+		Body: &ast.BinaryExpr{
+			Left:     &ast.NumberLiteral{Value: 2},
+			Operator: ast.BinaryAdd,
+			Right:    &ast.NumberLiteral{Value: 3},
+		},
+	}
+
+	mutation := &MutationValue{
+		Rules: []*ast.MutationRule{
+			{
+				Pattern:     &ast.Identifier{Name: "x"},
+				Replacement: &ast.Identifier{Name: "y"},
+			},
+			{
+				Pattern:     &ast.NumberLiteral{Value: 1},
+				Replacement: &ast.NumberLiteral{Value: 2},
+			},
+		},
+	}
+
+	if got := ShowValue(function); got != "fn add(a, b) = (a + b)" {
+		t.Fatalf("function = %q, want %q", got, "fn add(a, b) = (a + b)")
+	}
+
+	if got := ShowValue(code); got != "@{ (2 + 3) }" {
+		t.Fatalf("code = %q, want %q", got, "@{ (2 + 3) }")
+	}
+
+	wantMutation := "~{\n  x -> y\n  1 -> 2\n}"
+	if got := ShowValue(mutation); got != wantMutation {
+		t.Fatalf("mutation = %q, want %q", got, wantMutation)
+	}
+
+	if got := ShowValue(&NativeFunctionValue{FunctionName: "eval"}); got != "<native fn>" {
+		t.Fatalf("native function = %q, want %q", got, "<native fn>")
+	}
+}
+
+func TestShowValueFormatsMultilineNestedStructures(t *testing.T) {
+	value := &ListValue{
+		Elements: []Value{
+			&NumberValue{Value: 1},
+			&CodeValue{
+				Body: &ast.BlockExpr{
+					Expressions: []ast.Expr{
+						&ast.Identifier{Name: "x"},
+						&ast.Identifier{Name: "y"},
+					},
+				},
+			},
+		},
+	}
+
+	want := "[\n  1,\n  @{\n    x\n    y\n  }\n]"
+	if got := ShowValue(value); got != want {
+		t.Fatalf("multiline list = %q, want %q", got, want)
+	}
+}

@@ -1,0 +1,6 @@
+fn compare(code) = {
+  print(eval(code))
+  print(eval(code ~{ + -> * }))
+}
+
+compare @{ 2 + 3 }

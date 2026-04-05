@@ -1,0 +1,40 @@
+package integration_test
+
+import "testing"
+
+func TestCLISmokeExamples(t *testing.T) {
+	tests := []struct {
+		name       string
+		path       string
+		wantOutput string
+	}{
+		{
+			name:       "basic mutation",
+			path:       "examples/basic_mutation.molt",
+			wantOutput: "5\n6\n",
+		},
+		{
+			name:       "compare worlds",
+			path:       "examples/compare_worlds.molt",
+			wantOutput: "5\n6\n",
+		},
+		{
+			name:       "variant gallery",
+			path:       "examples/variant_gallery.molt",
+			wantOutput: "[6, 7, \"code\"]\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			stdout, stderr := runCLIExample(t, tc.path)
+			if stdout != tc.wantOutput {
+				t.Fatalf("stdout = %q, want %q", stdout, tc.wantOutput)
+			}
+
+			if stderr != "" {
+				t.Fatalf("stderr = %q, want empty", stderr)
+			}
+		})
+	}
+}
