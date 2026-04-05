@@ -576,6 +576,30 @@ func (e *Evaluator) ensureBuiltins(env *runtime.Environment) {
 		})
 	}
 
+	if _, ok := env.Get("lines"); !ok {
+		env.Define("lines", &runtime.NativeFunctionValue{
+			FunctionName: "lines",
+			Arity:        1,
+			Impl:         linesBuiltin,
+		})
+	}
+
+	if _, ok := env.Get("replace"); !ok {
+		env.Define("replace", &runtime.NativeFunctionValue{
+			FunctionName: "replace",
+			Arity:        3,
+			Impl:         replaceBuiltin,
+		})
+	}
+
+	if _, ok := env.Get("contains"); !ok {
+		env.Define("contains", &runtime.NativeFunctionValue{
+			FunctionName: "contains",
+			Arity:        2,
+			Impl:         containsBuiltin,
+		})
+	}
+
 	if _, ok := env.Get("range"); !ok {
 		env.Define("range", &runtime.NativeFunctionValue{
 			FunctionName: "range",
@@ -808,6 +832,81 @@ func trimBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value,
 	}
 
 	return &runtime.StringValue{Value: strings.TrimSpace(value.Value)}, nil
+}
+
+func linesBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	value, ok := args[0].(*runtime.StringValue)
+	if !ok {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("lines expects string, got %q", args[0].TypeName()),
+			ctx.CallSpan,
+		)
+	}
+
+	normalized := strings.NewReplacer("\r\n", "\n", "\r", "\n").Replace(value.Value)
+	parts := strings.Split(normalized, "\n")
+	if len(parts) == 1 && parts[0] == "" {
+		return &runtime.ListValue{Elements: nil}, nil
+	}
+
+	if strings.HasSuffix(normalized, "\n") {
+		parts = parts[:len(parts)-1]
+	}
+
+	elements := make([]runtime.Value, 0, len(parts))
+	for _, part := range parts {
+		elements = append(elements, &runtime.StringValue{Value: part})
+	}
+
+	return &runtime.ListValue{Elements: elements}, nil
+}
+
+func replaceBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	value, ok := args[0].(*runtime.StringValue)
+	if !ok {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("replace expects string as first argument, got %q", args[0].TypeName()),
+			ctx.CallSpan,
+		)
+	}
+
+	old, ok := args[1].(*runtime.StringValue)
+	if !ok {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("replace expects string as second argument, got %q", args[1].TypeName()),
+			ctx.CallSpan,
+		)
+	}
+
+	newValue, ok := args[2].(*runtime.StringValue)
+	if !ok {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("replace expects string as third argument, got %q", args[2].TypeName()),
+			ctx.CallSpan,
+		)
+	}
+
+	return &runtime.StringValue{Value: strings.ReplaceAll(value.Value, old.Value, newValue.Value)}, nil
+}
+
+func containsBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	value, ok := args[0].(*runtime.StringValue)
+	if !ok {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("contains expects string as first argument, got %q", args[0].TypeName()),
+			ctx.CallSpan,
+		)
+	}
+
+	needle, ok := args[1].(*runtime.StringValue)
+	if !ok {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("contains expects string as second argument, got %q", args[1].TypeName()),
+			ctx.CallSpan,
+		)
+	}
+
+	return &runtime.BooleanValue{Value: strings.Contains(value.Value, needle.Value)}, nil
 }
 
 func rangeBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {

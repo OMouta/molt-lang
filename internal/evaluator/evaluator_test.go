@@ -149,6 +149,12 @@ func TestEvaluateRuntimeErrors(t *testing.T) {
 		{name: "invalid split target", input: `split(1, ",")`, message: `split expects string as first argument, got "number"`},
 		{name: "invalid join element", input: `join([1], ",")`, message: `join expects list of strings, but element 0 has type "number"`},
 		{name: "invalid trim target", input: `trim(1)`, message: `trim expects string, got "number"`},
+		{name: "invalid lines target", input: `lines(1)`, message: `lines expects string, got "number"`},
+		{name: "invalid replace text", input: `replace(1, "a", "b")`, message: `replace expects string as first argument, got "number"`},
+		{name: "invalid replace old", input: `replace("abc", 1, "b")`, message: `replace expects string as second argument, got "number"`},
+		{name: "invalid replace new", input: `replace("abc", "a", 1)`, message: `replace expects string as third argument, got "number"`},
+		{name: "invalid contains text", input: `contains(1, "a")`, message: `contains expects string as first argument, got "number"`},
+		{name: "invalid contains needle", input: `contains("abc", 1)`, message: `contains expects string as second argument, got "number"`},
 		{name: "invalid range arity", input: `range(1, 2, 3)`, message: "range expects 1 or 2 arguments but got 3"},
 		{name: "invalid range integer", input: `range(1.5)`, message: "range expects integer at argument 1, got 1.5"},
 		{name: "invalid map callback", input: `map([1], 1)`, message: `map expects function as second argument, got "number"`},
@@ -630,6 +636,11 @@ func TestEvaluateStdlibHelpers(t *testing.T) {
 		"parts = split(\"a,b,c\", \",\")\n"+
 		"joined = join(parts, \"-\")\n"+
 		"trimmed = trim(\"  hello\\n\")\n"+
+		"lineParts = lines(\"one\\r\\ntwo\\nthree\\n\")\n"+
+		"lineParts2 = lines(\"\")\n"+
+		"replaced = replace(\"molt molt\", \"molt\", \"bolt\")\n"+
+		"hasNeedle = contains(\"mutation\", \"tat\")\n"+
+		"hasMissing = contains(\"mutation\", \"zzz\")\n"+
 		"xs = range(5)\n"+
 		"ys = range(2, 5)\n"+
 		"doubled = map(xs, fn(x) = x * 2)\n"+
@@ -641,6 +652,11 @@ func TestEvaluateStdlibHelpers(t *testing.T) {
 		"  parts,\n"+
 		"  joined,\n"+
 		"  trimmed,\n"+
+		"  lineParts,\n"+
+		"  lineParts2,\n"+
+		"  replaced,\n"+
+		"  hasNeedle,\n"+
+		"  hasMissing,\n"+
 		"  xs,\n"+
 		"  ys,\n"+
 		"  doubled,\n"+
@@ -656,8 +672,8 @@ func TestEvaluateStdlibHelpers(t *testing.T) {
 	)
 
 	values := expectValue[*runtime.ListValue](t, result)
-	if len(values.Elements) != 14 {
-		t.Fatalf("result length = %d, want 14", len(values.Elements))
+	if len(values.Elements) != 19 {
+		t.Fatalf("result length = %d, want 19", len(values.Elements))
 	}
 
 	if got := runtime.ShowValue(values.Elements[0]); got != `["a", "b", "c"]` {
@@ -672,47 +688,67 @@ func TestEvaluateStdlibHelpers(t *testing.T) {
 		t.Fatalf("trim result = %q, want %q", got.Value, "hello")
 	}
 
-	if got := runtime.ShowValue(values.Elements[3]); got != `[0, 1, 2, 3, 4]` {
+	if got := runtime.ShowValue(values.Elements[3]); got != `["one", "two", "three"]` {
+		t.Fatalf("lines result = %q, want %q", got, `["one", "two", "three"]`)
+	}
+
+	if got := runtime.ShowValue(values.Elements[4]); got != `[]` {
+		t.Fatalf("empty lines result = %q, want %q", got, `[]`)
+	}
+
+	if got := expectValue[*runtime.StringValue](t, values.Elements[5]); got.Value != "bolt bolt" {
+		t.Fatalf("replace result = %q, want %q", got.Value, "bolt bolt")
+	}
+
+	if got := expectValue[*runtime.BooleanValue](t, values.Elements[6]); !got.Value {
+		t.Fatalf("contains should have found substring")
+	}
+
+	if got := expectValue[*runtime.BooleanValue](t, values.Elements[7]); got.Value {
+		t.Fatalf("contains should not have found missing substring")
+	}
+
+	if got := runtime.ShowValue(values.Elements[8]); got != `[0, 1, 2, 3, 4]` {
 		t.Fatalf("range(5) = %q, want %q", got, `[0, 1, 2, 3, 4]`)
 	}
 
-	if got := runtime.ShowValue(values.Elements[4]); got != `[2, 3, 4]` {
+	if got := runtime.ShowValue(values.Elements[9]); got != `[2, 3, 4]` {
 		t.Fatalf("range(2, 5) = %q, want %q", got, `[2, 3, 4]`)
 	}
 
-	if got := runtime.ShowValue(values.Elements[5]); got != `[0, 2, 4, 6, 8]` {
+	if got := runtime.ShowValue(values.Elements[10]); got != `[0, 2, 4, 6, 8]` {
 		t.Fatalf("mapped result = %q, want %q", got, `[0, 2, 4, 6, 8]`)
 	}
 
-	if got := runtime.ShowValue(values.Elements[6]); got != `[0, 2, 4, 6, 8]` {
+	if got := runtime.ShowValue(values.Elements[11]); got != `[0, 2, 4, 6, 8]` {
 		t.Fatalf("indexed map result = %q, want %q", got, `[0, 2, 4, 6, 8]`)
 	}
 
-	if got := runtime.ShowValue(values.Elements[7]); got != `[0, 2, 4]` {
+	if got := runtime.ShowValue(values.Elements[12]); got != `[0, 2, 4]` {
 		t.Fatalf("filter result = %q, want %q", got, `[0, 2, 4]`)
 	}
 
-	if got := runtime.ShowValue(values.Elements[8]); got != `[0, 1]` {
+	if got := runtime.ShowValue(values.Elements[13]); got != `[0, 1]` {
 		t.Fatalf("indexed filter result = %q, want %q", got, `[0, 1]`)
 	}
 
-	if got := runtime.ShowValue(values.Elements[9]); got != `["number", "string", "boolean"]` {
+	if got := runtime.ShowValue(values.Elements[14]); got != `["number", "string", "boolean"]` {
 		t.Fatalf("native map result = %q, want %q", got, `["number", "string", "boolean"]`)
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[10]); got.Value != "[1, 2]" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[15]); got.Value != "[1, 2]" {
 		t.Fatalf("to_string(list) = %q, want %q", got.Value, "[1, 2]")
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[11]); got.Value != "nil" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[16]); got.Value != "nil" {
 		t.Fatalf("to_string(nil) = %q, want %q", got.Value, "nil")
 	}
 
-	if got := expectValue[*runtime.NumberValue](t, values.Elements[12]); got.Value != 12.5 {
+	if got := expectValue[*runtime.NumberValue](t, values.Elements[17]); got.Value != 12.5 {
 		t.Fatalf("to_number(string) = %v, want 12.5", got.Value)
 	}
 
-	if got := expectValue[*runtime.NumberValue](t, values.Elements[13]); got.Value != 7 {
+	if got := expectValue[*runtime.NumberValue](t, values.Elements[18]); got.Value != 7 {
 		t.Fatalf("to_number(number) = %v, want 7", got.Value)
 	}
 }

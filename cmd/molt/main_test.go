@@ -323,6 +323,100 @@ func TestRunREPLSupportsInputBuiltin(t *testing.T) {
 	}
 }
 
+func TestRunREPLSupportsHelpAndHistoryCommands(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	input := "" +
+		":help\n" +
+		"x = 1\n" +
+		"x + 2\n" +
+		":history\n" +
+		":quit\n"
+
+	exit := run(nil, strings.NewReader(input), &stdout, &stderr)
+
+	if exit != 0 {
+		t.Fatalf("exit code = %d, want 0", exit)
+	}
+
+	output := stdout.String()
+	if !strings.Contains(output, "REPL commands:\n") {
+		t.Fatalf("stdout = %q, want help output", output)
+	}
+
+	if !strings.Contains(output, ":load <path>  load and run a Molt file in this session\n") {
+		t.Fatalf("stdout = %q, want :load help", output)
+	}
+
+	if !strings.Contains(output, "1\n3\n") {
+		t.Fatalf("stdout = %q, want evaluated results", output)
+	}
+
+	if !strings.Contains(output, "1 | x = 1\n2 | x + 2\n") {
+		t.Fatalf("stdout = %q, want history entries", output)
+	}
+
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunREPLSupportsLoadCommandAndSharedState(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "seed.molt")
+	writeTestFile(t, path, "x = 4")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	input := ":load " + filepath.ToSlash(path) + "\n" +
+		"x + 2\n"
+
+	exit := run(nil, strings.NewReader(input), &stdout, &stderr)
+
+	if exit != 0 {
+		t.Fatalf("exit code = %d, want 0", exit)
+	}
+
+	if stdout.String() != "4\n6\n" {
+		t.Fatalf("stdout = %q, want %q", stdout.String(), "4\n6\n")
+	}
+
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunREPLLoadAndUnknownCommandFailuresDoNotKillSession(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	input := "" +
+		":wat\n" +
+		":load missing-file.molt\n" +
+		"1 + 2\n"
+
+	exit := run(nil, strings.NewReader(input), &stdout, &stderr)
+
+	if exit != 0 {
+		t.Fatalf("exit code = %d, want 0", exit)
+	}
+
+	if stdout.String() != "3\n" {
+		t.Fatalf("stdout = %q, want %q", stdout.String(), "3\n")
+	}
+
+	errOut := stderr.String()
+	if !strings.Contains(errOut, `repl command error: unknown command ":wat" (try :help)`) {
+		t.Fatalf("stderr = %q, want unknown command error", errOut)
+	}
+
+	if !strings.Contains(errOut, `repl command error: failed to read "missing-file.molt"`) {
+		t.Fatalf("stderr = %q, want load failure", errOut)
+	}
+}
+
 func writeTestFile(t *testing.T, path, text string) {
 	t.Helper()
 

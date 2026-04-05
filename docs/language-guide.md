@@ -164,6 +164,15 @@ Supported matching forms:
 `trim(text)`
 : Trim leading and trailing whitespace from a string.
 
+`lines(text)`
+: Split a string into a list of lines. `\n`, `\r\n`, and `\r` are all treated as line breaks, and one trailing final newline does not add an extra empty line.
+
+`replace(text, old, new)`
+: Replace every occurrence of `old` inside `text` with `new`.
+
+`contains(text, needle)`
+: Return `true` if `needle` appears inside `text`, otherwise `false`.
+
 `range(end)` / `range(start, end)`
 : Build an ascending list of integers with an exclusive end bound.
 
@@ -205,6 +214,10 @@ Running `molt` with no file starts a stateful REPL.
 - multiline forms such as blocks, quotes, mutation literals, and grouped expressions keep reading until they are complete
 - parse and runtime diagnostics are rendered, but the session stays alive
 - non-`nil` results are printed automatically
+- `:help` prints the available REPL commands
+- `:load path/to/file.molt` evaluates a file inside the current REPL environment
+- `:history` prints previously submitted entries with line numbers
+- `:quit` and `:exit` leave the session
 
 ## Display
 

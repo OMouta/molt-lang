@@ -51,6 +51,13 @@ If you run `molt` without a file, it starts a REPL:
 go run ./cmd/molt
 ```
 
+Useful REPL commands:
+
+- `:help` shows the built-in commands
+- `:load path/to/file.molt` loads and runs a file in the current session
+- `:history` shows previously submitted entries
+- `:quit` or `:exit` leaves the session
+
 Usage:
 
 ```txt

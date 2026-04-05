@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"molt/internal/cli/exitcode"
@@ -21,10 +22,19 @@ const (
 	replSecondaryPrompt = ".. "
 )
 
+const replHelpText = "" +
+	"REPL commands:\n" +
+	":help         show this help\n" +
+	":history      show submitted entries\n" +
+	":load <path>  load and run a Molt file in this session\n" +
+	":quit         exit the REPL\n" +
+	":exit         exit the REPL\n"
+
 func runREPL(stdin io.Reader, stdout, stderr io.Writer, args []string) int {
 	reader := bufio.NewReader(inputOrStdin(stdin))
 	eval := evaluator.NewWithContext(reader, stdout, args)
 	env := runtime.NewEnvironment(nil)
+	history := make([]string, 0, 16)
 	var buffer strings.Builder
 	interactive := replIsInteractive(stdin, stdout)
 
@@ -53,21 +63,30 @@ func runREPL(stdin io.Reader, stdout, stderr io.Writer, args []string) int {
 
 		if buffer.Len() == 0 {
 			trimmed := strings.TrimSpace(line)
-			if trimmed == ":quit" || trimmed == ":exit" {
-				return 0
+			if strings.HasPrefix(trimmed, ":") {
+				quit := handleREPLCommand(trimmed, &history, eval, env, stdout, stderr)
+				if quit {
+					return 0
+				}
+
+				if errors.Is(err, io.EOF) {
+					return 0
+				}
+
+				continue
 			}
 		}
 
 		buffer.WriteString(line)
 
-		consumed, done := processREPLBuffer(eval, env, buffer.String(), stdout, stderr)
+		consumed, done := processREPLBuffer(eval, env, buffer.String(), stdout, stderr, &history)
 		if consumed {
 			buffer.Reset()
 		}
 
 		if errors.Is(err, io.EOF) {
 			if !done {
-				processREPLBuffer(eval, env, buffer.String(), stdout, stderr)
+				processREPLBuffer(eval, env, buffer.String(), stdout, stderr, &history)
 			}
 
 			return 0
@@ -75,7 +94,7 @@ func runREPL(stdin io.Reader, stdout, stderr io.Writer, args []string) int {
 	}
 }
 
-func processREPLBuffer(eval *evaluator.Evaluator, env *runtime.Environment, text string, stdout, stderr io.Writer) (consumed bool, done bool) {
+func processREPLBuffer(eval *evaluator.Evaluator, env *runtime.Environment, text string, stdout, stderr io.Writer, history *[]string) (consumed bool, done bool) {
 	trimmed := strings.TrimSpace(text)
 	if trimmed == "" {
 		return true, true
@@ -87,10 +106,12 @@ func processREPLBuffer(eval *evaluator.Evaluator, env *runtime.Environment, text
 			return false, false
 		}
 
+		appendREPLHistory(history, text)
 		fmt.Fprintln(stderr, diagnostic.Render(err.(diagnostic.DetailedError)))
 		return true, true
 	}
 
+	appendREPLHistory(history, text)
 	value, err := eval.EvalProgram(program, env)
 	if err != nil {
 		fmt.Fprintln(stderr, diagnostic.Render(err.(diagnostic.DetailedError)))
@@ -102,6 +123,100 @@ func processREPLBuffer(eval *evaluator.Evaluator, env *runtime.Environment, text
 	}
 
 	return true, true
+}
+
+func handleREPLCommand(commandLine string, history *[]string, eval *evaluator.Evaluator, env *runtime.Environment, stdout, stderr io.Writer) bool {
+	name, arg := splitREPLCommand(commandLine)
+
+	switch name {
+	case ":quit", ":exit":
+		return true
+	case ":help":
+		fmt.Fprint(stdout, replHelpText)
+		return false
+	case ":history":
+		printREPLHistory(history, stdout)
+		return false
+	case ":load":
+		path := arg
+		if path == "" {
+			fmt.Fprintln(stderr, "repl command error: :load expects a path")
+			return false
+		}
+
+		if unquoted, err := strconv.Unquote(path); err == nil {
+			path = unquoted
+		}
+
+		appendREPLHistory(history, commandLine)
+		loadREPLFile(path, eval, env, stdout, stderr)
+		return false
+	default:
+		fmt.Fprintf(stderr, "repl command error: unknown command %q (try :help)\n", commandLine)
+		return false
+	}
+}
+
+func splitREPLCommand(commandLine string) (name, arg string) {
+	commandLine = strings.TrimSpace(commandLine)
+	if commandLine == "" {
+		return "", ""
+	}
+
+	index := strings.IndexAny(commandLine, " \t")
+	if index < 0 {
+		return commandLine, ""
+	}
+
+	return commandLine[:index], strings.TrimSpace(commandLine[index+1:])
+}
+
+func loadREPLFile(path string, eval *evaluator.Evaluator, env *runtime.Environment, stdout, stderr io.Writer) {
+	text, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Fprintf(stderr, "repl command error: failed to read %q: %v\n", path, err)
+		return
+	}
+
+	program, err := parser.Parse(path, string(text))
+	if err != nil {
+		fmt.Fprintln(stderr, diagnostic.Render(err.(diagnostic.DetailedError)))
+		return
+	}
+
+	value, err := eval.EvalProgram(program, env)
+	if err != nil {
+		fmt.Fprintln(stderr, diagnostic.Render(err.(diagnostic.DetailedError)))
+		return
+	}
+
+	if _, ok := value.(runtime.NilValue); !ok {
+		fmt.Fprintln(stdout, runtime.ShowValue(value))
+	}
+}
+
+func appendREPLHistory(history *[]string, entry string) {
+	if history == nil {
+		return
+	}
+
+	trimmed := strings.TrimSpace(entry)
+	if trimmed == "" {
+		return
+	}
+
+	*history = append(*history, trimmed)
+}
+
+func printREPLHistory(history *[]string, stdout io.Writer) {
+	if history == nil || len(*history) == 0 {
+		fmt.Fprintln(stdout, "history is empty")
+		return
+	}
+
+	for index, entry := range *history {
+		fmt.Fprintf(stdout, "%d | %s\n", index+1, entry)
+	}
 }
 
 func replNeedsMoreInput(text string, err error) bool {
