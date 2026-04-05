@@ -1,6 +1,6 @@
 # Documentation
 
-This folder contains the published v1 docs for `@molt`.
+This folder contains the published docs for `@molt` in its current pre-v1 state.
 
 - [Getting Started](getting-started.md)
 - [Language Guide](language-guide.md)

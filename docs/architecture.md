@@ -68,7 +68,7 @@ Location: `internal/runtime`
 The mutation system works in three stages:
 
 1. Parse mutation rules into AST form.
-2. Validate that each rule uses a supported v1 pattern shape.
+2. Validate that each rule uses a supported pattern shape.
 3. Apply rules in order using pre-order traversal and immutable AST rewriting.
 
 Properties guaranteed by the rewrite engine:

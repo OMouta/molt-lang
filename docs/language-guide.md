@@ -18,7 +18,7 @@ eval(code)
 
 ## Values
 
-The v1 runtime includes:
+The current runtime includes:
 
 - `number`
 - `string`
@@ -131,7 +131,7 @@ Mutations can be applied to:
 
 Mutation returns a new value. The original target is unchanged.
 
-Supported v1 matching forms:
+Supported matching forms:
 
 - operator replacement: `+ -> *`
 - identifier replacement: `x -> y`
