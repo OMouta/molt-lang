@@ -2,6 +2,7 @@ package evaluator
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 
 	"molt/internal/ast"
@@ -149,12 +150,22 @@ func TestEvaluateRuntimeErrors(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := evalString(runtime.NewEnvironment(nil), tc.name+".molt", tc.input)
+			_, err := evalStringWithEvaluator(nil, runtime.NewEnvironment(nil), tc.name+".molt", tc.input)
 			runtimeErr := expectRuntimeError(t, err)
 			if runtimeErr.Diagnostic().Message != tc.message {
 				t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, tc.message)
 			}
 		})
+	}
+}
+
+func TestEvaluateStdinReadFailure(t *testing.T) {
+	evaluator := NewWithIO(errReader{err: errors.New("boom")}, nil)
+
+	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), "stdin_failure.molt", "stdin()")
+	runtimeErr := expectRuntimeError(t, err)
+	if runtimeErr.Diagnostic().Message != "stdin failed: boom" {
+		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, "stdin failed: boom")
 	}
 }
 
@@ -407,12 +418,14 @@ func TestEvalReexecutesFreshlyOnEachCall(t *testing.T) {
 
 func TestEvaluateBuiltins(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
-	result := mustEval(t, env, "builtins.molt", ""+
+	result, err := evalStringWithEvaluator(NewWithIO(bytes.NewBufferString("hello\nworld"), nil), env, "builtins.molt", ""+
 		"xs = [1]\n"+
 		"same = push(xs, 2)\n"+
 		"fn add(a, b) = a + b\n"+
 		"code = @{ 1 + 2 }\n"+
 		"mut = ~{ x -> y\n1 -> 2 }\n"+
+		"input1 = stdin()\n"+
+		"input2 = stdin()\n"+
 		"[\n"+
 		"  type(1),\n"+
 		"  type(\"x\"),\n"+
@@ -429,13 +442,18 @@ func TestEvaluateBuiltins(t *testing.T) {
 		"  show(xs),\n"+
 		"  show(code),\n"+
 		"  show(mut),\n"+
-		"  show(add)\n"+
+		"  show(add),\n"+
+		"  input1,\n"+
+		"  input2\n"+
 		"]",
 	)
+	if err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
 
 	values := expectValue[*runtime.ListValue](t, result)
-	if len(values.Elements) != 16 {
-		t.Fatalf("result length = %d, want 16", len(values.Elements))
+	if len(values.Elements) != 18 {
+		t.Fatalf("result length = %d, want 18", len(values.Elements))
 	}
 
 	wantTypes := []string{
@@ -483,6 +501,14 @@ func TestEvaluateBuiltins(t *testing.T) {
 
 	if got := expectValue[*runtime.StringValue](t, values.Elements[15]); got.Value != "fn add(a, b) = (a + b)" {
 		t.Fatalf("show(add) = %q, want %q", got.Value, "fn add(a, b) = (a + b)")
+	}
+
+	if got := expectValue[*runtime.StringValue](t, values.Elements[16]); got.Value != "hello\nworld" {
+		t.Fatalf("stdin() first read = %q, want %q", got.Value, "hello\nworld")
+	}
+
+	if got := expectValue[*runtime.StringValue](t, values.Elements[17]); got.Value != "" {
+		t.Fatalf("stdin() second read = %q, want empty string", got.Value)
 	}
 }
 
@@ -615,4 +641,12 @@ func expectMutationExpr[T any](t *testing.T, expr ast.Expr) T {
 	}
 
 	return cast
+}
+
+type errReader struct {
+	err error
+}
+
+func (r errReader) Read(p []byte) (int, error) {
+	return 0, r.err
 }

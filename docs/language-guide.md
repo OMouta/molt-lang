@@ -158,6 +158,9 @@ Supported matching forms:
 `print(x)`
 : Write the `show(x)` form followed by a newline.
 
+`stdin()`
+: Read the remaining standard input as a string. If stdin has already been consumed, it returns `""`.
+
 ## Display
 
 Display is source-like and stable enough for tests.

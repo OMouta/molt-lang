@@ -14,28 +14,33 @@ import (
 )
 
 func main() {
-	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
 
-func run(args []string, stdout, stderr io.Writer) int {
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) != 1 {
-		fmt.Fprintln(stderr, "usage: molt <file>")
+		fmt.Fprintln(stderr, "usage: molt <file|->")
 		return exitcode.Usage
 	}
 
 	path := args[0]
-	text, err := os.ReadFile(path)
+	text, err := readProgramSource(path, stdin)
 	if err != nil {
+		if path == "-" {
+			fmt.Fprintf(stderr, "failed to read source from stdin: %v\n", err)
+			return exitcode.SourceIO
+		}
+
 		fmt.Fprintf(stderr, "failed to read source file %q: %v\n", path, err)
 		return exitcode.SourceIO
 	}
 
-	program, err := parser.Parse(path, string(text))
+	program, err := parser.Parse(path, text)
 	if err != nil {
 		return reportError(err, stderr)
 	}
 
-	_, err = evaluator.New(stdout).EvalProgram(program, runtime.NewEnvironment(nil))
+	_, err = evaluator.NewWithIO(stdin, stdout).EvalProgram(program, runtime.NewEnvironment(nil))
 	if err != nil {
 		return reportError(err, stderr)
 	}
@@ -58,4 +63,26 @@ func reportError(err error, stderr io.Writer) int {
 
 	fmt.Fprintf(stderr, "internal error: %v\n", err)
 	return exitcode.Internal
+}
+
+func readProgramSource(path string, stdin io.Reader) (string, error) {
+	if path == "-" {
+		if stdin == nil {
+			stdin = os.Stdin
+		}
+
+		text, err := io.ReadAll(stdin)
+		if err != nil {
+			return "", err
+		}
+
+		return string(text), nil
+	}
+
+	text, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	return string(text), nil
 }

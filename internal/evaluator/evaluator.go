@@ -13,10 +13,18 @@ import (
 
 type Evaluator struct {
 	output io.Writer
+	input  io.Reader
 }
 
 func New(output io.Writer) *Evaluator {
 	return &Evaluator{output: output}
+}
+
+func NewWithIO(input io.Reader, output io.Writer) *Evaluator {
+	return &Evaluator{
+		input:  input,
+		output: output,
+	}
 }
 
 func EvalProgram(program *ast.Program, env *runtime.Environment) (runtime.Value, error) {
@@ -483,6 +491,7 @@ func (e *Evaluator) evalCall(env *runtime.Environment, expr *ast.CallExpr) (runt
 			Environment:  env,
 			CallSpan:     expr.Span(),
 			EvalCode:     e.evalCodeValue,
+			Input:        e.inputReader(),
 			Output:       e.outputWriter(),
 		}, args)
 		if err != nil {
@@ -554,6 +563,14 @@ func (e *Evaluator) ensureBuiltins(env *runtime.Environment) {
 			FunctionName: "print",
 			Arity:        1,
 			Impl:         printBuiltin,
+		})
+	}
+
+	if _, ok := env.Get("stdin"); !ok {
+		env.Define("stdin", &runtime.NativeFunctionValue{
+			FunctionName: "stdin",
+			Arity:        0,
+			Impl:         stdinBuiltin,
 		})
 	}
 }
@@ -635,8 +652,32 @@ func printBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value
 	return runtime.Nil, nil
 }
 
+func stdinBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	text, err := io.ReadAll(inputReader(ctx.Input))
+	if err != nil {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("stdin failed: %v", err),
+			ctx.CallSpan,
+		)
+	}
+
+	return &runtime.StringValue{Value: string(text)}, nil
+}
+
 func (e *Evaluator) outputWriter() io.Writer {
 	return outputWriter(e.output)
+}
+
+func (e *Evaluator) inputReader() io.Reader {
+	return inputReader(e.input)
+}
+
+func inputReader(reader io.Reader) io.Reader {
+	if reader != nil {
+		return reader
+	}
+
+	return os.Stdin
 }
 
 func outputWriter(writer io.Writer) io.Writer {

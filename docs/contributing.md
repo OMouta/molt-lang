@@ -42,7 +42,3 @@ The repo relies on multiple test layers:
 - CLI smoke checks against example programs
 
 When changing syntax or semantics, update both focused tests and at least one realistic integration path when appropriate.
-
-## Documentation Notes
-
-The old planning-era docs were moved into `.archive/docs-pre-v1/` and that folder is ignored. The published docs live in `docs/`.

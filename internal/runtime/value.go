@@ -95,4 +95,5 @@ type CallContext struct {
 	CallSpan     source.Span
 	EvalCode     func(*CodeValue) (Value, error)
 	Output       io.Writer
+	Input        io.Reader
 }

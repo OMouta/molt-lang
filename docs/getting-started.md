@@ -33,10 +33,16 @@ The CLI executes one source file at a time:
 go run ./cmd/molt ./examples/basic_mutation.molt
 ```
 
+It can also read a program from standard input:
+
+```powershell
+'print(1 + 2)' | go run ./cmd/molt -
+```
+
 Usage:
 
 ```txt
-molt <file>
+molt <file|->
 ```
 
 Exit codes:
