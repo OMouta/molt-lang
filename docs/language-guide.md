@@ -155,11 +155,35 @@ Supported matching forms:
 `push(list, value)`
 : Append to a list in place and return the same list.
 
+`split(text, separator)`
+: Split a string into a list of strings.
+
+`join(parts, separator)`
+: Join a list of strings into a single string.
+
+`trim(text)`
+: Trim leading and trailing whitespace from a string.
+
+`range(end)` / `range(start, end)`
+: Build an ascending list of integers with an exclusive end bound.
+
+`map(list, fn)`
+: Return a new list by applying a callback to each element. The callback may accept `(value)` or `(value, index)`.
+
+`filter(list, fn)`
+: Return a new list containing only the elements whose callback result is `true`. The callback may accept `(value)` or `(value, index)`.
+
 `show(x)`
 : Return a stable display string.
 
 `read_file(path)`
 : Read a file from disk and return its contents as a string. The path must be a non-empty string.
+
+`to_string(x)`
+: Convert a value to a string. Strings stay raw; other values use their readable source-like form.
+
+`to_number(x)`
+: Convert a number or numeric string to a number.
 
 `print(x)`
 : Write the `show(x)` form followed by a newline.

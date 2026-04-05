@@ -95,6 +95,7 @@ type CallContext struct {
 	Arguments    []string
 	CallSpan     source.Span
 	EvalCode     func(*CodeValue) (Value, error)
+	Invoke       func(Value, []Value, *Environment, source.Span) (Value, error)
 	ReadFile     func(string) ([]byte, error)
 	Output       io.Writer
 	Input        io.Reader

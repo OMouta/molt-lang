@@ -5,10 +5,13 @@ import (
 	"io"
 	"math"
 	"os"
+	"strconv"
+	"strings"
 
 	"molt/internal/ast"
 	"molt/internal/diagnostic"
 	"molt/internal/runtime"
+	"molt/internal/source"
 )
 
 type Evaluator struct {
@@ -488,41 +491,7 @@ func (e *Evaluator) evalCall(env *runtime.Environment, expr *ast.CallExpr) (runt
 		args = append(args, argument)
 	}
 
-	switch fn := callee.(type) {
-	case *runtime.UserFunctionValue:
-		if len(args) != len(fn.Parameters) {
-			return nil, e.runtimeError(expr, arityMessage(len(fn.Parameters), len(args)))
-		}
-
-		callEnv := runtime.NewEnvironment(fn.Env)
-		for i, parameter := range fn.Parameters {
-			callEnv.Define(parameter, args[i])
-		}
-
-		return e.evalExpr(callEnv, fn.Body)
-	case runtime.NativeFunction:
-		if native, ok := callee.(*runtime.NativeFunctionValue); ok && native.Arity >= 0 && len(args) != native.Arity {
-			return nil, e.runtimeError(expr, arityMessage(native.Arity, len(args)))
-		}
-
-		result, err := fn.Call(&runtime.CallContext{
-			FunctionName: fn.Name(),
-			Environment:  env,
-			Arguments:    e.arguments(),
-			CallSpan:     expr.Span(),
-			EvalCode:     e.evalCodeValue,
-			ReadFile:     e.readFileFunc(),
-			Input:        e.inputReader(),
-			Output:       e.outputWriter(),
-		}, args)
-		if err != nil {
-			return nil, err
-		}
-
-		return result, nil
-	default:
-		return nil, e.runtimeError(expr.Callee, fmt.Sprintf("cannot call value of type %q", callee.TypeName()))
-	}
+	return e.invokeValue(env, callee, args, expr.Span())
 }
 
 func (e *Evaluator) runtimeError(node ast.Expr, message string) error {
@@ -579,6 +548,54 @@ func (e *Evaluator) ensureBuiltins(env *runtime.Environment) {
 		})
 	}
 
+	if _, ok := env.Get("split"); !ok {
+		env.Define("split", &runtime.NativeFunctionValue{
+			FunctionName: "split",
+			Arity:        2,
+			Impl:         splitBuiltin,
+		})
+	}
+
+	if _, ok := env.Get("join"); !ok {
+		env.Define("join", &runtime.NativeFunctionValue{
+			FunctionName: "join",
+			Arity:        2,
+			Impl:         joinBuiltin,
+		})
+	}
+
+	if _, ok := env.Get("trim"); !ok {
+		env.Define("trim", &runtime.NativeFunctionValue{
+			FunctionName: "trim",
+			Arity:        1,
+			Impl:         trimBuiltin,
+		})
+	}
+
+	if _, ok := env.Get("range"); !ok {
+		env.Define("range", &runtime.NativeFunctionValue{
+			FunctionName: "range",
+			Arity:        -1,
+			Impl:         rangeBuiltin,
+		})
+	}
+
+	if _, ok := env.Get("map"); !ok {
+		env.Define("map", &runtime.NativeFunctionValue{
+			FunctionName: "map",
+			Arity:        2,
+			Impl:         mapBuiltin,
+		})
+	}
+
+	if _, ok := env.Get("filter"); !ok {
+		env.Define("filter", &runtime.NativeFunctionValue{
+			FunctionName: "filter",
+			Arity:        2,
+			Impl:         filterBuiltin,
+		})
+	}
+
 	if _, ok := env.Get("show"); !ok {
 		env.Define("show", &runtime.NativeFunctionValue{
 			FunctionName: "show",
@@ -592,6 +609,22 @@ func (e *Evaluator) ensureBuiltins(env *runtime.Environment) {
 			FunctionName: "read_file",
 			Arity:        1,
 			Impl:         readFileBuiltin,
+		})
+	}
+
+	if _, ok := env.Get("to_string"); !ok {
+		env.Define("to_string", &runtime.NativeFunctionValue{
+			FunctionName: "to_string",
+			Arity:        1,
+			Impl:         toStringBuiltin,
+		})
+	}
+
+	if _, ok := env.Get("to_number"); !ok {
+		env.Define("to_number", &runtime.NativeFunctionValue{
+			FunctionName: "to_number",
+			Arity:        1,
+			Impl:         toNumberBuiltin,
 		})
 	}
 
@@ -686,6 +719,189 @@ func pushBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value,
 	return list, nil
 }
 
+func splitBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	value, ok := args[0].(*runtime.StringValue)
+	if !ok {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("split expects string as first argument, got %q", args[0].TypeName()),
+			ctx.CallSpan,
+		)
+	}
+
+	separator, ok := args[1].(*runtime.StringValue)
+	if !ok {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("split expects string as second argument, got %q", args[1].TypeName()),
+			ctx.CallSpan,
+		)
+	}
+
+	parts := strings.Split(value.Value, separator.Value)
+	elements := make([]runtime.Value, 0, len(parts))
+	for _, part := range parts {
+		elements = append(elements, &runtime.StringValue{Value: part})
+	}
+
+	return &runtime.ListValue{Elements: elements}, nil
+}
+
+func joinBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	list, ok := args[0].(*runtime.ListValue)
+	if !ok {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("join expects list as first argument, got %q", args[0].TypeName()),
+			ctx.CallSpan,
+		)
+	}
+
+	separator, ok := args[1].(*runtime.StringValue)
+	if !ok {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("join expects string as second argument, got %q", args[1].TypeName()),
+			ctx.CallSpan,
+		)
+	}
+
+	parts := make([]string, 0, len(list.Elements))
+	for i, element := range list.Elements {
+		item, ok := element.(*runtime.StringValue)
+		if !ok {
+			return nil, diagnostic.NewRuntimeError(
+				fmt.Sprintf("join expects list of strings, but element %d has type %q", i, element.TypeName()),
+				ctx.CallSpan,
+			)
+		}
+
+		parts = append(parts, item.Value)
+	}
+
+	return &runtime.StringValue{Value: strings.Join(parts, separator.Value)}, nil
+}
+
+func trimBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	value, ok := args[0].(*runtime.StringValue)
+	if !ok {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("trim expects string, got %q", args[0].TypeName()),
+			ctx.CallSpan,
+		)
+	}
+
+	return &runtime.StringValue{Value: strings.TrimSpace(value.Value)}, nil
+}
+
+func rangeBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	if len(args) != 1 && len(args) != 2 {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("range expects 1 or 2 arguments but got %d", len(args)),
+			ctx.CallSpan,
+		)
+	}
+
+	start := 0
+	end, err := integerArgument("range", args[0], 0, ctx.CallSpan)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(args) == 2 {
+		start, err = integerArgument("range", args[0], 0, ctx.CallSpan)
+		if err != nil {
+			return nil, err
+		}
+
+		end, err = integerArgument("range", args[1], 1, ctx.CallSpan)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if end <= start {
+		return &runtime.ListValue{Elements: nil}, nil
+	}
+
+	elements := make([]runtime.Value, 0, end-start)
+	for i := start; i < end; i++ {
+		elements = append(elements, &runtime.NumberValue{Value: float64(i)})
+	}
+
+	return &runtime.ListValue{Elements: elements}, nil
+}
+
+func mapBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	list, ok := args[0].(*runtime.ListValue)
+	if !ok {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("map expects list as first argument, got %q", args[0].TypeName()),
+			ctx.CallSpan,
+		)
+	}
+
+	callbackArity, err := callbackArity("map", args[1], ctx.CallSpan)
+	if err != nil {
+		return nil, err
+	}
+
+	elements := make([]runtime.Value, 0, len(list.Elements))
+	for index, element := range list.Elements {
+		callbackArgs := []runtime.Value{element}
+		if callbackArity == 2 {
+			callbackArgs = append(callbackArgs, &runtime.NumberValue{Value: float64(index)})
+		}
+
+		value, err := invokeCallback(ctx, args[1], callbackArgs)
+		if err != nil {
+			return nil, err
+		}
+
+		elements = append(elements, value)
+	}
+
+	return &runtime.ListValue{Elements: elements}, nil
+}
+
+func filterBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	list, ok := args[0].(*runtime.ListValue)
+	if !ok {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("filter expects list as first argument, got %q", args[0].TypeName()),
+			ctx.CallSpan,
+		)
+	}
+
+	callbackArity, err := callbackArity("filter", args[1], ctx.CallSpan)
+	if err != nil {
+		return nil, err
+	}
+
+	elements := make([]runtime.Value, 0, len(list.Elements))
+	for index, element := range list.Elements {
+		callbackArgs := []runtime.Value{element}
+		if callbackArity == 2 {
+			callbackArgs = append(callbackArgs, &runtime.NumberValue{Value: float64(index)})
+		}
+
+		value, err := invokeCallback(ctx, args[1], callbackArgs)
+		if err != nil {
+			return nil, err
+		}
+
+		boolean, ok := value.(*runtime.BooleanValue)
+		if !ok {
+			return nil, diagnostic.NewRuntimeError(
+				fmt.Sprintf("filter callback must return boolean, got %q", value.TypeName()),
+				ctx.CallSpan,
+			)
+		}
+
+		if boolean.Value {
+			elements = append(elements, element)
+		}
+	}
+
+	return &runtime.ListValue{Elements: elements}, nil
+}
+
 func showBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
 	return &runtime.StringValue{Value: runtime.ShowValue(args[0])}, nil
 }
@@ -717,6 +933,44 @@ func readFileBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Va
 	}
 
 	return &runtime.StringValue{Value: string(data)}, nil
+}
+
+func toStringBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	switch value := args[0].(type) {
+	case *runtime.StringValue:
+		return &runtime.StringValue{Value: value.Value}, nil
+	case *runtime.NumberValue:
+		return &runtime.StringValue{Value: runtime.ShowValue(value)}, nil
+	case *runtime.BooleanValue:
+		return &runtime.StringValue{Value: runtime.ShowValue(value)}, nil
+	case runtime.NilValue:
+		return &runtime.StringValue{Value: "nil"}, nil
+	default:
+		return &runtime.StringValue{Value: runtime.ShowValue(args[0])}, nil
+	}
+}
+
+func toNumberBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	switch value := args[0].(type) {
+	case *runtime.NumberValue:
+		return &runtime.NumberValue{Value: value.Value}, nil
+	case *runtime.StringValue:
+		text := strings.TrimSpace(value.Value)
+		number, err := strconv.ParseFloat(text, 64)
+		if err != nil {
+			return nil, diagnostic.NewRuntimeError(
+				fmt.Sprintf("to_number could not parse %q", value.Value),
+				ctx.CallSpan,
+			)
+		}
+
+		return &runtime.NumberValue{Value: number}, nil
+	default:
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("to_number expects number or string, got %q", args[0].TypeName()),
+			ctx.CallSpan,
+		)
+	}
 }
 
 func printBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
@@ -757,6 +1011,98 @@ func (e *Evaluator) readFileFunc() func(string) ([]byte, error) {
 	}
 
 	return os.ReadFile
+}
+
+func (e *Evaluator) invokeValue(env *runtime.Environment, callee runtime.Value, args []runtime.Value, span source.Span) (runtime.Value, error) {
+	switch fn := callee.(type) {
+	case *runtime.UserFunctionValue:
+		if len(args) != len(fn.Parameters) {
+			return nil, diagnostic.NewRuntimeError(arityMessage(len(fn.Parameters), len(args)), span)
+		}
+
+		callEnv := runtime.NewEnvironment(fn.Env)
+		for i, parameter := range fn.Parameters {
+			callEnv.Define(parameter, args[i])
+		}
+
+		return e.evalExpr(callEnv, fn.Body)
+	case runtime.NativeFunction:
+		if native, ok := callee.(*runtime.NativeFunctionValue); ok && native.Arity >= 0 && len(args) != native.Arity {
+			return nil, diagnostic.NewRuntimeError(arityMessage(native.Arity, len(args)), span)
+		}
+
+		return fn.Call(&runtime.CallContext{
+			FunctionName: fn.Name(),
+			Environment:  env,
+			Arguments:    e.arguments(),
+			CallSpan:     span,
+			EvalCode:     e.evalCodeValue,
+			Invoke: func(callee runtime.Value, args []runtime.Value, env *runtime.Environment, span source.Span) (runtime.Value, error) {
+				return e.invokeValue(env, callee, args, span)
+			},
+			ReadFile: e.readFileFunc(),
+			Input:    e.inputReader(),
+			Output:   e.outputWriter(),
+		}, args)
+	default:
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("cannot call value of type %q", callee.TypeName()),
+			span,
+		)
+	}
+}
+
+func callbackArity(name string, callback runtime.Value, span source.Span) (int, error) {
+	switch value := callback.(type) {
+	case *runtime.UserFunctionValue:
+		if len(value.Parameters) == 1 || len(value.Parameters) == 2 {
+			return len(value.Parameters), nil
+		}
+		return 0, diagnostic.NewRuntimeError(
+			fmt.Sprintf("%s callback must accept 1 or 2 arguments, got %d", name, len(value.Parameters)),
+			span,
+		)
+	case *runtime.NativeFunctionValue:
+		if value.Arity == 1 || value.Arity == 2 {
+			return value.Arity, nil
+		}
+		return 0, diagnostic.NewRuntimeError(
+			fmt.Sprintf("%s callback must accept 1 or 2 arguments, got %d", name, value.Arity),
+			span,
+		)
+	default:
+		return 0, diagnostic.NewRuntimeError(
+			fmt.Sprintf("%s expects function as second argument, got %q", name, callback.TypeName()),
+			span,
+		)
+	}
+}
+
+func invokeCallback(ctx *runtime.CallContext, callback runtime.Value, args []runtime.Value) (runtime.Value, error) {
+	if ctx.Invoke == nil {
+		return nil, fmt.Errorf("missing callback invoker")
+	}
+
+	return ctx.Invoke(callback, args, ctx.Environment, ctx.CallSpan)
+}
+
+func integerArgument(name string, value runtime.Value, position int, span source.Span) (int, error) {
+	number, ok := value.(*runtime.NumberValue)
+	if !ok {
+		return 0, diagnostic.NewRuntimeError(
+			fmt.Sprintf("%s expects number at argument %d, got %q", name, position+1, value.TypeName()),
+			span,
+		)
+	}
+
+	if math.Trunc(number.Value) != number.Value {
+		return 0, diagnostic.NewRuntimeError(
+			fmt.Sprintf("%s expects integer at argument %d, got %v", name, position+1, number.Value),
+			span,
+		)
+	}
+
+	return int(number.Value), nil
 }
 
 func inputReader(reader io.Reader) io.Reader {

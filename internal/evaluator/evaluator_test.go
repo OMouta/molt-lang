@@ -146,6 +146,15 @@ func TestEvaluateRuntimeErrors(t *testing.T) {
 		{name: "invalid mutation operand", input: "code = @{ 1 }\ncode ~ 1", message: `expected mutation value, got "number"`},
 		{name: "invalid len target", input: "len(1)", message: `len expects list or string, got "number"`},
 		{name: "invalid push target", input: "push(1, 2)", message: `push expects list as first argument, got "number"`},
+		{name: "invalid split target", input: `split(1, ",")`, message: `split expects string as first argument, got "number"`},
+		{name: "invalid join element", input: `join([1], ",")`, message: `join expects list of strings, but element 0 has type "number"`},
+		{name: "invalid trim target", input: `trim(1)`, message: `trim expects string, got "number"`},
+		{name: "invalid range arity", input: `range(1, 2, 3)`, message: "range expects 1 or 2 arguments but got 3"},
+		{name: "invalid range integer", input: `range(1.5)`, message: "range expects integer at argument 1, got 1.5"},
+		{name: "invalid map callback", input: `map([1], 1)`, message: `map expects function as second argument, got "number"`},
+		{name: "invalid map callback arity", input: `map([1], fn(a, b, c) = a)`, message: "map callback must accept 1 or 2 arguments, got 3"},
+		{name: "invalid filter callback result", input: `filter([1], fn(x) = x)`, message: `filter callback must return boolean, got "number"`},
+		{name: "invalid to_number parse", input: `to_number("abc")`, message: `to_number could not parse "abc"`},
 		{name: "invalid read_file target", input: "read_file(1)", message: `read_file expects string path, got "number"`},
 		{name: "empty read_file path", input: `read_file("")`, message: "read_file path cannot be empty"},
 	}
@@ -554,6 +563,98 @@ func TestEvaluateBuiltins(t *testing.T) {
 
 	if got := expectValue[*runtime.StringValue](t, values.Elements[21]); got.Value != "" {
 		t.Fatalf("stdin() second read = %q, want empty string", got.Value)
+	}
+}
+
+func TestEvaluateStdlibHelpers(t *testing.T) {
+	result := mustEval(t, runtime.NewEnvironment(nil), "stdlib_helpers.molt", ""+
+		"parts = split(\"a,b,c\", \",\")\n"+
+		"joined = join(parts, \"-\")\n"+
+		"trimmed = trim(\"  hello\\n\")\n"+
+		"xs = range(5)\n"+
+		"ys = range(2, 5)\n"+
+		"doubled = map(xs, fn(x) = x * 2)\n"+
+		"indexed = map(xs, fn(x, i) = x + i)\n"+
+		"evens = filter(xs, fn(x) = x % 2 == 0)\n"+
+		"prefix = filter(xs, fn(x, i) = i < 2)\n"+
+		"typed = map([1, \"x\", true], type)\n"+
+		"[\n"+
+		"  parts,\n"+
+		"  joined,\n"+
+		"  trimmed,\n"+
+		"  xs,\n"+
+		"  ys,\n"+
+		"  doubled,\n"+
+		"  indexed,\n"+
+		"  evens,\n"+
+		"  prefix,\n"+
+		"  typed,\n"+
+		"  to_string([1, 2]),\n"+
+		"  to_string(nil),\n"+
+		"  to_number(\" 12.5 \"),\n"+
+		"  to_number(7)\n"+
+		"]",
+	)
+
+	values := expectValue[*runtime.ListValue](t, result)
+	if len(values.Elements) != 14 {
+		t.Fatalf("result length = %d, want 14", len(values.Elements))
+	}
+
+	if got := runtime.ShowValue(values.Elements[0]); got != `["a", "b", "c"]` {
+		t.Fatalf("split result = %q, want %q", got, `["a", "b", "c"]`)
+	}
+
+	if got := expectValue[*runtime.StringValue](t, values.Elements[1]); got.Value != "a-b-c" {
+		t.Fatalf("join result = %q, want %q", got.Value, "a-b-c")
+	}
+
+	if got := expectValue[*runtime.StringValue](t, values.Elements[2]); got.Value != "hello" {
+		t.Fatalf("trim result = %q, want %q", got.Value, "hello")
+	}
+
+	if got := runtime.ShowValue(values.Elements[3]); got != `[0, 1, 2, 3, 4]` {
+		t.Fatalf("range(5) = %q, want %q", got, `[0, 1, 2, 3, 4]`)
+	}
+
+	if got := runtime.ShowValue(values.Elements[4]); got != `[2, 3, 4]` {
+		t.Fatalf("range(2, 5) = %q, want %q", got, `[2, 3, 4]`)
+	}
+
+	if got := runtime.ShowValue(values.Elements[5]); got != `[0, 2, 4, 6, 8]` {
+		t.Fatalf("mapped result = %q, want %q", got, `[0, 2, 4, 6, 8]`)
+	}
+
+	if got := runtime.ShowValue(values.Elements[6]); got != `[0, 2, 4, 6, 8]` {
+		t.Fatalf("indexed map result = %q, want %q", got, `[0, 2, 4, 6, 8]`)
+	}
+
+	if got := runtime.ShowValue(values.Elements[7]); got != `[0, 2, 4]` {
+		t.Fatalf("filter result = %q, want %q", got, `[0, 2, 4]`)
+	}
+
+	if got := runtime.ShowValue(values.Elements[8]); got != `[0, 1]` {
+		t.Fatalf("indexed filter result = %q, want %q", got, `[0, 1]`)
+	}
+
+	if got := runtime.ShowValue(values.Elements[9]); got != `["number", "string", "boolean"]` {
+		t.Fatalf("native map result = %q, want %q", got, `["number", "string", "boolean"]`)
+	}
+
+	if got := expectValue[*runtime.StringValue](t, values.Elements[10]); got.Value != "[1, 2]" {
+		t.Fatalf("to_string(list) = %q, want %q", got.Value, "[1, 2]")
+	}
+
+	if got := expectValue[*runtime.StringValue](t, values.Elements[11]); got.Value != "nil" {
+		t.Fatalf("to_string(nil) = %q, want %q", got.Value, "nil")
+	}
+
+	if got := expectValue[*runtime.NumberValue](t, values.Elements[12]); got.Value != 12.5 {
+		t.Fatalf("to_number(string) = %v, want 12.5", got.Value)
+	}
+
+	if got := expectValue[*runtime.NumberValue](t, values.Elements[13]); got.Value != 7 {
+		t.Fatalf("to_number(number) = %v, want 7", got.Value)
 	}
 }
 
