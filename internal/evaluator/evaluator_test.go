@@ -157,6 +157,9 @@ func TestEvaluateRuntimeErrors(t *testing.T) {
 		{name: "invalid to_number parse", input: `to_number("abc")`, message: `to_number could not parse "abc"`},
 		{name: "invalid read_file target", input: "read_file(1)", message: `read_file expects string path, got "number"`},
 		{name: "empty read_file path", input: `read_file("")`, message: "read_file path cannot be empty"},
+		{name: "invalid write_file path", input: `write_file(1, "x")`, message: `write_file expects string path as first argument, got "number"`},
+		{name: "invalid write_file text", input: `write_file("out.txt", 1)`, message: `write_file expects string text as second argument, got "number"`},
+		{name: "empty write_file path", input: `write_file("", "x")`, message: "write_file path cannot be empty"},
 	}
 
 	for _, tc := range tests {
@@ -193,12 +196,24 @@ func TestEvaluateInputReadFailure(t *testing.T) {
 func TestEvaluateReadFileFailure(t *testing.T) {
 	evaluator := NewWithRuntime(nil, nil, nil, func(path string) ([]byte, error) {
 		return nil, errors.New("boom")
-	})
+	}, nil)
 
 	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), "read_file_failure.molt", `read_file("missing.txt")`)
 	runtimeErr := expectRuntimeError(t, err)
 	if runtimeErr.Diagnostic().Message != `read_file failed for "missing.txt": boom` {
 		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, `read_file failed for "missing.txt": boom`)
+	}
+}
+
+func TestEvaluateWriteFileFailure(t *testing.T) {
+	evaluator := NewWithRuntime(nil, nil, nil, nil, func(path string, data []byte) error {
+		return errors.New("boom")
+	})
+
+	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), "write_file_failure.molt", `write_file("missing.txt", "hello")`)
+	runtimeErr := expectRuntimeError(t, err)
+	if runtimeErr.Diagnostic().Message != `write_file failed for "missing.txt": boom` {
+		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, `write_file failed for "missing.txt": boom`)
 	}
 }
 
@@ -451,12 +466,20 @@ func TestEvalReexecutesFreshlyOnEachCall(t *testing.T) {
 
 func TestEvaluateBuiltins(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
+	files := map[string]string{
+		"note.txt": "file contents",
+	}
+
 	result, err := evalStringWithEvaluator(NewWithRuntime(bytes.NewBufferString("hello\nworld"), nil, []string{"alpha", "beta"}, func(path string) ([]byte, error) {
-		if path != "note.txt" {
+		value, ok := files[path]
+		if !ok {
 			return nil, errors.New("unexpected path")
 		}
 
-		return []byte("file contents"), nil
+		return []byte(value), nil
+	}, func(path string, data []byte) error {
+		files[path] = string(data)
+		return nil
 	}), env, "builtins.molt", ""+
 		"xs = [1]\n"+
 		"same = push(xs, 2)\n"+
@@ -468,6 +491,9 @@ func TestEvaluateBuiltins(t *testing.T) {
 		"push(cli1, \"extra\")\n"+
 		"file1 = read_file(\"note.txt\")\n"+
 		"file2 = read_file(\"note.txt\")\n"+
+		"write_file(\"written.txt\", \"saved\")\n"+
+		"write_file(\"written.txt\", \"updated\")\n"+
+		"written = read_file(\"written.txt\")\n"+
 		"line1 = input()\n"+
 		"line2 = input()\n"+
 		"line3 = input()\n"+
@@ -494,6 +520,7 @@ func TestEvaluateBuiltins(t *testing.T) {
 		"  cli2,\n"+
 		"  file1,\n"+
 		"  file2,\n"+
+		"  written,\n"+
 		"  line1,\n"+
 		"  line2,\n"+
 		"  line3,\n"+
@@ -506,8 +533,8 @@ func TestEvaluateBuiltins(t *testing.T) {
 	}
 
 	values := expectValue[*runtime.ListValue](t, result)
-	if len(values.Elements) != 25 {
-		t.Fatalf("result length = %d, want 25", len(values.Elements))
+	if len(values.Elements) != 26 {
+		t.Fatalf("result length = %d, want 26", len(values.Elements))
 	}
 
 	wantTypes := []string{
@@ -573,23 +600,27 @@ func TestEvaluateBuiltins(t *testing.T) {
 		t.Fatalf("read_file second = %q, want %q", got.Value, "file contents")
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[20]); got.Value != "hello" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[20]); got.Value != "updated" {
+		t.Fatalf("written file = %q, want %q", got.Value, "updated")
+	}
+
+	if got := expectValue[*runtime.StringValue](t, values.Elements[21]); got.Value != "hello" {
 		t.Fatalf("input first = %q, want %q", got.Value, "hello")
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[21]); got.Value != "world" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[22]); got.Value != "world" {
 		t.Fatalf("input second = %q, want %q", got.Value, "world")
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[22]); got.Value != "" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[23]); got.Value != "" {
 		t.Fatalf("input third = %q, want empty string", got.Value)
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[23]); got.Value != "" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[24]); got.Value != "" {
 		t.Fatalf("stdin() first read after input() = %q, want empty string", got.Value)
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[24]); got.Value != "" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[25]); got.Value != "" {
 		t.Fatalf("stdin() second read = %q, want empty string", got.Value)
 	}
 }

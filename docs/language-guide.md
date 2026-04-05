@@ -179,6 +179,9 @@ Supported matching forms:
 `read_file(path)`
 : Read a file from disk and return its contents as a string. The path must be a non-empty string.
 
+`write_file(path, text)`
+: Write a string to a file on disk, replacing any existing contents. The path and text must both be strings, and the path must be non-empty.
+
 `input()`
 : Read one line from standard input and return it without the trailing newline. At end of input it returns `""`.
 

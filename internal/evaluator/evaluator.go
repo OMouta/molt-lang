@@ -16,11 +16,12 @@ import (
 )
 
 type Evaluator struct {
-	output   io.Writer
-	input    io.Reader
-	inputBuf *bufio.Reader
-	args     []string
-	readFile func(string) ([]byte, error)
+	output    io.Writer
+	input     io.Reader
+	inputBuf  *bufio.Reader
+	args      []string
+	readFile  func(string) ([]byte, error)
+	writeFile func(string, []byte) error
 }
 
 func New(output io.Writer) *Evaluator {
@@ -42,12 +43,13 @@ func NewWithContext(input io.Reader, output io.Writer, args []string) *Evaluator
 	}
 }
 
-func NewWithRuntime(input io.Reader, output io.Writer, args []string, readFile func(string) ([]byte, error)) *Evaluator {
+func NewWithRuntime(input io.Reader, output io.Writer, args []string, readFile func(string) ([]byte, error), writeFile func(string, []byte) error) *Evaluator {
 	return &Evaluator{
-		input:    input,
-		output:   output,
-		args:     append([]string(nil), args...),
-		readFile: readFile,
+		input:     input,
+		output:    output,
+		args:      append([]string(nil), args...),
+		readFile:  readFile,
+		writeFile: writeFile,
 	}
 }
 
@@ -614,6 +616,14 @@ func (e *Evaluator) ensureBuiltins(env *runtime.Environment) {
 		})
 	}
 
+	if _, ok := env.Get("write_file"); !ok {
+		env.Define("write_file", &runtime.NativeFunctionValue{
+			FunctionName: "write_file",
+			Arity:        2,
+			Impl:         writeFileBuiltin,
+		})
+	}
+
 	if _, ok := env.Get("input"); !ok {
 		env.Define("input", &runtime.NativeFunctionValue{
 			FunctionName: "input",
@@ -945,6 +955,42 @@ func readFileBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Va
 	return &runtime.StringValue{Value: string(data)}, nil
 }
 
+func writeFileBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	path, ok := args[0].(*runtime.StringValue)
+	if !ok {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("write_file expects string path as first argument, got %q", args[0].TypeName()),
+			ctx.CallSpan,
+		)
+	}
+
+	text, ok := args[1].(*runtime.StringValue)
+	if !ok {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("write_file expects string text as second argument, got %q", args[1].TypeName()),
+			ctx.CallSpan,
+		)
+	}
+
+	if path.Value == "" {
+		return nil, diagnostic.NewRuntimeError("write_file path cannot be empty", ctx.CallSpan)
+	}
+
+	writer := ctx.WriteFile
+	if writer == nil {
+		writer = defaultWriteFile
+	}
+
+	if err := writer(path.Value, []byte(text.Value)); err != nil {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("write_file failed for %q: %v", path.Value, err),
+			ctx.CallSpan,
+		)
+	}
+
+	return runtime.Nil, nil
+}
+
 func toStringBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
 	switch value := args[0].(type) {
 	case *runtime.StringValue:
@@ -1049,6 +1095,14 @@ func (e *Evaluator) readFileFunc() func(string) ([]byte, error) {
 	return os.ReadFile
 }
 
+func (e *Evaluator) writeFileFunc() func(string, []byte) error {
+	if e.writeFile != nil {
+		return e.writeFile
+	}
+
+	return defaultWriteFile
+}
+
 func (e *Evaluator) bufferedInputReader() *bufio.Reader {
 	if e.inputBuf != nil {
 		return e.inputBuf
@@ -1085,9 +1139,10 @@ func (e *Evaluator) invokeValue(env *runtime.Environment, callee runtime.Value, 
 			Invoke: func(callee runtime.Value, args []runtime.Value, env *runtime.Environment, span source.Span) (runtime.Value, error) {
 				return e.invokeValue(env, callee, args, span)
 			},
-			ReadFile: e.readFileFunc(),
-			Input:    e.inputReader(),
-			Output:   e.outputWriter(),
+			ReadFile:  e.readFileFunc(),
+			WriteFile: e.writeFileFunc(),
+			Input:     e.inputReader(),
+			Output:    e.outputWriter(),
 		}, args)
 	default:
 		return nil, diagnostic.NewRuntimeError(
@@ -1167,6 +1222,10 @@ func bufferedInputReader(reader io.Reader) *bufio.Reader {
 	default:
 		return bufio.NewReader(value)
 	}
+}
+
+func defaultWriteFile(path string, data []byte) error {
+	return os.WriteFile(path, data, 0o644)
 }
 
 func outputWriter(writer io.Writer) io.Writer {

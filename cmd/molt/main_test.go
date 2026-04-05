@@ -193,6 +193,38 @@ func TestRunExecutesReadFileBuiltin(t *testing.T) {
 	}
 }
 
+func TestRunExecutesWriteFileBuiltin(t *testing.T) {
+	dir := t.TempDir()
+	dataPath := filepath.Join(dir, "written.txt")
+	programPath := filepath.Join(dir, "write_file.molt")
+	writeTestFile(t, programPath, "write_file(\""+filepath.ToSlash(dataPath)+"\", \"hello from write_file\")")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	exit := run([]string{programPath}, strings.NewReader(""), &stdout, &stderr)
+
+	if exit != 0 {
+		t.Fatalf("exit code = %d, want 0", exit)
+	}
+
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+
+	data, err := os.ReadFile(dataPath)
+	if err != nil {
+		t.Fatalf("ReadFile failed: %v", err)
+	}
+
+	if string(data) != "hello from write_file" {
+		t.Fatalf("written data = %q, want %q", string(data), "hello from write_file")
+	}
+}
+
 func TestRunExecutesInputBuiltin(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "input.molt")
