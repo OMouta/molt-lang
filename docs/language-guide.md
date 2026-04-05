@@ -179,6 +179,9 @@ Supported matching forms:
 `read_file(path)`
 : Read a file from disk and return its contents as a string. The path must be a non-empty string.
 
+`input()`
+: Read one line from standard input and return it without the trailing newline. At end of input it returns `""`.
+
 `to_string(x)`
 : Convert a value to a string. Strings stay raw; other values use their readable source-like form.
 
@@ -186,7 +189,7 @@ Supported matching forms:
 : Convert a number or numeric string to a number.
 
 `print(x)`
-: Write the `show(x)` form followed by a newline.
+: Write a user-facing text form followed by a newline. Strings print without quotes; other values use their readable display form.
 
 `stdin()`
 : Read the remaining standard input as a string. If stdin has already been consumed, it returns `""`.

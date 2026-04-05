@@ -1,6 +1,7 @@
 package evaluator
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"math"
@@ -17,6 +18,7 @@ import (
 type Evaluator struct {
 	output   io.Writer
 	input    io.Reader
+	inputBuf *bufio.Reader
 	args     []string
 	readFile func(string) ([]byte, error)
 }
@@ -612,6 +614,14 @@ func (e *Evaluator) ensureBuiltins(env *runtime.Environment) {
 		})
 	}
 
+	if _, ok := env.Get("input"); !ok {
+		env.Define("input", &runtime.NativeFunctionValue{
+			FunctionName: "input",
+			Arity:        0,
+			Impl:         inputBuiltin,
+		})
+	}
+
 	if _, ok := env.Get("to_string"); !ok {
 		env.Define("to_string", &runtime.NativeFunctionValue{
 			FunctionName: "to_string",
@@ -974,7 +984,12 @@ func toNumberBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Va
 }
 
 func printBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
-	if _, err := fmt.Fprintln(outputWriter(ctx.Output), runtime.ShowValue(args[0])); err != nil {
+	text := runtime.ShowValue(args[0])
+	if value, ok := args[0].(*runtime.StringValue); ok {
+		text = value.Value
+	}
+
+	if _, err := fmt.Fprintln(outputWriter(ctx.Output), text); err != nil {
 		return nil, err
 	}
 
@@ -993,12 +1008,33 @@ func stdinBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value
 	return &runtime.StringValue{Value: string(text)}, nil
 }
 
+func inputBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	reader := bufferedInputReader(ctx.Input)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		if err == io.EOF {
+			line = strings.TrimSuffix(line, "\n")
+			line = strings.TrimSuffix(line, "\r")
+			return &runtime.StringValue{Value: line}, nil
+		}
+
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("input failed: %v", err),
+			ctx.CallSpan,
+		)
+	}
+
+	line = strings.TrimSuffix(line, "\n")
+	line = strings.TrimSuffix(line, "\r")
+	return &runtime.StringValue{Value: line}, nil
+}
+
 func (e *Evaluator) outputWriter() io.Writer {
 	return outputWriter(e.output)
 }
 
 func (e *Evaluator) inputReader() io.Reader {
-	return inputReader(e.input)
+	return e.bufferedInputReader()
 }
 
 func (e *Evaluator) arguments() []string {
@@ -1011,6 +1047,15 @@ func (e *Evaluator) readFileFunc() func(string) ([]byte, error) {
 	}
 
 	return os.ReadFile
+}
+
+func (e *Evaluator) bufferedInputReader() *bufio.Reader {
+	if e.inputBuf != nil {
+		return e.inputBuf
+	}
+
+	e.inputBuf = bufferedInputReader(e.input)
+	return e.inputBuf
 }
 
 func (e *Evaluator) invokeValue(env *runtime.Environment, callee runtime.Value, args []runtime.Value, span source.Span) (runtime.Value, error) {
@@ -1111,6 +1156,17 @@ func inputReader(reader io.Reader) io.Reader {
 	}
 
 	return os.Stdin
+}
+
+func bufferedInputReader(reader io.Reader) *bufio.Reader {
+	switch value := reader.(type) {
+	case *bufio.Reader:
+		return value
+	case nil:
+		return bufio.NewReader(os.Stdin)
+	default:
+		return bufio.NewReader(value)
+	}
 }
 
 func outputWriter(writer io.Writer) io.Writer {

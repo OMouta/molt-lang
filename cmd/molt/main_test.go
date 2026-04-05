@@ -184,8 +184,30 @@ func TestRunExecutesReadFileBuiltin(t *testing.T) {
 		t.Fatalf("exit code = %d, want 0", exit)
 	}
 
-	if stdout.String() != "\"hello from disk\"\n" {
-		t.Fatalf("stdout = %q, want %q", stdout.String(), "\"hello from disk\"\n")
+	if stdout.String() != "hello from disk\n" {
+		t.Fatalf("stdout = %q, want %q", stdout.String(), "hello from disk\n")
+	}
+
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunExecutesInputBuiltin(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "input.molt")
+	writeTestFile(t, path, "print([input(), input(), stdin()])")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	exit := run([]string{path}, strings.NewReader("first\nsecond\nrest"), &stdout, &stderr)
+
+	if exit != 0 {
+		t.Fatalf("exit code = %d, want 0", exit)
+	}
+
+	if stdout.String() != "[\"first\", \"second\", \"rest\"]\n" {
+		t.Fatalf("stdout = %q, want %q", stdout.String(), "[\"first\", \"second\", \"rest\"]\n")
 	}
 
 	if stderr.Len() != 0 {
@@ -241,6 +263,31 @@ func TestRunREPLSupportsMultilineInputAndContinuesAfterErrors(t *testing.T) {
 
 	if !strings.Contains(errOut, `<repl>:1:7: parse error: chained relational operators are not allowed`) {
 		t.Fatalf("stderr = %q, want parse diagnostic", errOut)
+	}
+}
+
+func TestRunREPLSupportsInputBuiltin(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	input := "" +
+		"print([input(), input(), stdin()])\n" +
+		"first\n" +
+		"second\n" +
+		"tail"
+
+	exit := run(nil, strings.NewReader(input), &stdout, &stderr)
+
+	if exit != 0 {
+		t.Fatalf("exit code = %d, want 0", exit)
+	}
+
+	if stdout.String() != "[\"first\", \"second\", \"tail\"]\n" {
+		t.Fatalf("stdout = %q, want %q", stdout.String(), "[\"first\", \"second\", \"tail\"]\n")
+	}
+
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
 	}
 }
 

@@ -33,10 +33,28 @@ Expected output:
 [6, 7, "code"]
 ```
 
+[`examples/guessing_game.molt`](../examples/guessing_game.molt)
+: Interactive example using `input()` and `to_number()` to keep asking for guesses until the fixed secret number is found.
+
+Example session:
+
+```txt
+guess a number between 1 and 10
+3
+too low
+guess a number between 1 and 10
+9
+too high
+guess a number between 1 and 10
+7
+you got it!
+```
+
 ## Running Examples
 
 ```powershell
 go run ./cmd/molt ./examples/basic_mutation.molt
 go run ./cmd/molt ./examples/compare_worlds.molt
 go run ./cmd/molt ./examples/variant_gallery.molt
+go run ./cmd/molt ./examples/guessing_game.molt
 ```

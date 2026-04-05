@@ -1,0 +1,17 @@
+# Guess the fixed secret number. Keep entering guesses until you win.
+
+fn play() = {
+  print("guess a number between 1 and 10")
+  guess = to_number(input())
+
+  if guess == 7 -> print("you got it!")
+  else -> if guess < 7 -> {
+    print("too low")
+    play()
+  } else -> {
+    print("too high")
+    play()
+  }
+}
+
+play()
