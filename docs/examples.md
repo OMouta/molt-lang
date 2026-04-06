@@ -24,6 +24,16 @@ Expected output:
 6
 ```
 
+[`examples/import_export/main.molt`](../examples/import_export/main.molt)
+: Imports explicitly exported module bindings from a neighboring file and calls an exported function that still closes over private module state.
+
+Expected output:
+
+```txt
+40
+42
+```
+
 [`examples/variant_gallery.molt`](../examples/variant_gallery.molt)
 : A fuller end-to-end program combining functions, quotes, mutations, lists, `push`, `type`, `len`, and `eval`.
 
@@ -55,6 +65,7 @@ you got it!
 ```powershell
 go run ./cmd/molt ./examples/basic_mutation.molt
 go run ./cmd/molt ./examples/compare_worlds.molt
+go run ./cmd/molt ./examples/import_export/main.molt
 go run ./cmd/molt ./examples/variant_gallery.molt
 go run ./cmd/molt ./examples/guessing_game.molt
 ```

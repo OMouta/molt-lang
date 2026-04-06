@@ -56,10 +56,21 @@ Evaluator responsibilities:
 
 - execute AST nodes
 - create closures and quoted code values
+- resolve and execute imported module files
 - execute builtins
 - preserve captured environments for functions and quotes
 
 The evaluator is also responsible for wiring builtin output so CLI execution and tests can both observe `print(...)`.
+
+Current import behavior is intentionally minimal:
+
+- imports resolve relative to the importing source file
+- each imported file evaluates in an isolated module scope rooted in builtins
+- imported modules expose only explicitly exported top-level bindings
+- non-exported module bindings remain private inside the module environment
+- imported modules are cached per evaluation run after their first successful evaluation
+- import cycles are detected from the active module load stack and reported as runtime diagnostics
+- module namespacing and richer export forms are left for later tasks
 
 ## Mutation And Rewrite Engine
 

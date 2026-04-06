@@ -247,6 +247,82 @@ func TestRunExecutesInputBuiltin(t *testing.T) {
 	}
 }
 
+func TestRunExecutesRelativeImports(t *testing.T) {
+	dir := t.TempDir()
+	libPath := filepath.Join(dir, "lib.molt")
+	mainPath := filepath.Join(dir, "main.molt")
+	writeTestFile(t, libPath, "value = 41\nfn bump(x) = x + 1\nexport value\nexport bump")
+	writeTestFile(t, mainPath, "import \"./lib.molt\"\nprint(bump(value))")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	exit := run([]string{mainPath}, strings.NewReader(""), &stdout, &stderr)
+
+	if exit != 0 {
+		t.Fatalf("exit code = %d, want 0", exit)
+	}
+
+	if stdout.String() != "42\n" {
+		t.Fatalf("stdout = %q, want %q", stdout.String(), "42\n")
+	}
+
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunKeepsPrivateImportedBindingsHidden(t *testing.T) {
+	dir := t.TempDir()
+	libPath := filepath.Join(dir, "lib.molt")
+	mainPath := filepath.Join(dir, "main.molt")
+	writeTestFile(t, libPath, "hidden = 41\nfn value() = hidden\nexport value")
+	writeTestFile(t, mainPath, "import \"./lib.molt\"\nprint(hidden)")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	exit := run([]string{mainPath}, strings.NewReader(""), &stdout, &stderr)
+
+	if exit != 4 {
+		t.Fatalf("exit code = %d, want 4", exit)
+	}
+
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+
+	if !strings.Contains(stderr.String(), `undefined identifier "hidden"`) {
+		t.Fatalf("stderr = %q, want hidden binding failure", stderr.String())
+	}
+}
+
+func TestRunReportsImportCycleDiagnostics(t *testing.T) {
+	dir := t.TempDir()
+	aPath := filepath.Join(dir, "a.molt")
+	bPath := filepath.Join(dir, "b.molt")
+	mainPath := filepath.Join(dir, "main.molt")
+	writeTestFile(t, aPath, `import "./b.molt"`)
+	writeTestFile(t, bPath, `import "./a.molt"`)
+	writeTestFile(t, mainPath, `import "./a.molt"`)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	exit := run([]string{mainPath}, strings.NewReader(""), &stdout, &stderr)
+
+	if exit != 4 {
+		t.Fatalf("exit code = %d, want 4", exit)
+	}
+
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+
+	output := stderr.String()
+	want := "import cycle detected: " + filepath.ToSlash(aPath) + " -> " + filepath.ToSlash(bPath) + " -> " + filepath.ToSlash(aPath)
+	if !strings.Contains(output, want) {
+		t.Fatalf("stderr = %q, want cycle diagnostic", output)
+	}
+}
+
 func TestRunStartsREPLWhenNoFileIsProvided(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer

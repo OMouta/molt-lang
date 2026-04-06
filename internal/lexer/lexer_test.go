@@ -9,6 +9,7 @@ import (
 func TestLexProducesFinalTokenStreamWithPayloadsAndEOF(t *testing.T) {
 	input := `
 # file header
+import "./lib.molt"
 fn warp(code) = {
   xs = [1, 2.5, "hi\n\"there\""]
   if true and not false or nil == nil -> eval(code ~{ + -> * }) else -> push(xs, 3)
@@ -30,6 +31,7 @@ warp @{ 1 + 2 } ~ other != stuff <= more >= less < x > y
 	}
 
 	wantKinds := []Kind{
+		Import, String,
 		Fn, Identifier, LeftParen, Identifier, RightParen, Assign, LeftBrace,
 		Identifier, Assign, LeftBracket, Number, Comma, Number, Comma, String, RightBracket,
 		If, True, And, Not, False, Or, Nil, EqualEqual, Nil, Arrow,
@@ -50,18 +52,19 @@ warp @{ 1 + 2 } ~ other != stuff <= more >= less < x > y
 		}
 	}
 
-	checkTokenValue(t, tokens[1], "warp")
-	checkTokenValue(t, tokens[3], "code")
-	checkTokenValue(t, tokens[10], "1")
-	checkTokenValue(t, tokens[12], "2.5")
-	checkTokenValue(t, tokens[14], "hi\n\"there\"")
-	checkTokenValue(t, tokens[26], "eval")
-	checkTokenValue(t, tokens[39], "xs")
-	checkTokenValue(t, tokens[41], "3")
-	checkTokenValue(t, tokens[44], "warp")
-	checkTokenValue(t, tokens[46], "1")
-	checkTokenValue(t, tokens[48], "2")
-	checkTokenValue(t, tokens[51], "other")
+	checkTokenValue(t, tokens[1], "./lib.molt")
+	checkTokenValue(t, tokens[3], "warp")
+	checkTokenValue(t, tokens[5], "code")
+	checkTokenValue(t, tokens[12], "1")
+	checkTokenValue(t, tokens[14], "2.5")
+	checkTokenValue(t, tokens[16], "hi\n\"there\"")
+	checkTokenValue(t, tokens[28], "eval")
+	checkTokenValue(t, tokens[41], "xs")
+	checkTokenValue(t, tokens[43], "3")
+	checkTokenValue(t, tokens[46], "warp")
+	checkTokenValue(t, tokens[48], "1")
+	checkTokenValue(t, tokens[50], "2")
+	checkTokenValue(t, tokens[53], "other")
 
 	eof := tokens[len(tokens)-1]
 	if eof.Span.Start.Offset != eof.Span.End.Offset {
@@ -100,6 +103,27 @@ func TestLexMaximalMunchForOperatorsAndIntroducers(t *testing.T) {
 			t.Fatalf("token[%d] kind = %s, want %s", i, tokens[i].Kind, want[i])
 		}
 	}
+}
+
+func TestLexRecognizesModuleKeywords(t *testing.T) {
+	tokens, err := Lex("modules.molt", "export value\nimport \"./lib.molt\"")
+	if err != nil {
+		t.Fatalf("Lex returned error: %v", err)
+	}
+
+	want := []Kind{Export, Identifier, Import, String, EOF}
+	if len(tokens) != len(want) {
+		t.Fatalf("token count = %d, want %d", len(tokens), len(want))
+	}
+
+	for i := range want {
+		if tokens[i].Kind != want[i] {
+			t.Fatalf("token[%d] kind = %s, want %s", i, tokens[i].Kind, want[i])
+		}
+	}
+
+	checkTokenValue(t, tokens[1], "value")
+	checkTokenValue(t, tokens[3], "./lib.molt")
 }
 
 func TestLexRejectsMalformedNumbers(t *testing.T) {

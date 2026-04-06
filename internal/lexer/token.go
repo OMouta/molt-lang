@@ -15,15 +15,17 @@ const (
 	Number     Kind = "number"
 	String     Kind = "string"
 
-	Fn    Kind = "fn"
-	If    Kind = "if"
-	Else  Kind = "else"
-	And   Kind = "and"
-	Or    Kind = "or"
-	Not   Kind = "not"
-	True  Kind = "true"
-	False Kind = "false"
-	Nil   Kind = "nil"
+	Fn     Kind = "fn"
+	If     Kind = "if"
+	Else   Kind = "else"
+	Export Kind = "export"
+	Import Kind = "import"
+	And    Kind = "and"
+	Or     Kind = "or"
+	Not    Kind = "not"
+	True   Kind = "true"
+	False  Kind = "false"
+	Nil    Kind = "nil"
 
 	LeftParen    Kind = "("
 	RightParen   Kind = ")"
@@ -68,15 +70,17 @@ func (t Token) String() string {
 }
 
 var keywords = map[string]Kind{
-	"fn":    Fn,
-	"if":    If,
-	"else":  Else,
-	"and":   And,
-	"or":    Or,
-	"not":   Not,
-	"true":  True,
-	"false": False,
-	"nil":   Nil,
+	"fn":     Fn,
+	"if":     If,
+	"else":   Else,
+	"export": Export,
+	"import": Import,
+	"and":    And,
+	"or":     Or,
+	"not":    Not,
+	"true":   True,
+	"false":  False,
+	"nil":    Nil,
 }
 
 func LookupKeyword(text string) (Kind, bool) {

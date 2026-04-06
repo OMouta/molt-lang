@@ -3,6 +3,7 @@ package evaluator
 import (
 	"bytes"
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"molt/internal/ast"
@@ -127,6 +128,132 @@ func TestEvaluateEmptyBlockReturnsNil(t *testing.T) {
 	}
 }
 
+func TestEvaluateImportLoadsRelativeModuleBindings(t *testing.T) {
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.molt")
+	libPath := filepath.Join(dir, "lib.molt")
+
+	files := map[string]string{
+		libPath: "" +
+			"answer = 41\n" +
+			"fn bump(x) = x + 1\n" +
+			"export answer\n" +
+			"export bump",
+	}
+
+	evaluator := NewWithRuntime(nil, nil, nil, func(path string) ([]byte, error) {
+		value, ok := files[path]
+		if !ok {
+			return nil, errors.New("missing file")
+		}
+
+		return []byte(value), nil
+	}, nil)
+
+	result, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, ""+
+		"import \"./lib.molt\"\n"+
+		"bump(answer)",
+	)
+	if err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+
+	number := expectValue[*runtime.NumberValue](t, result)
+	if number.Value != 42 {
+		t.Fatalf("result = %v, want 42", number.Value)
+	}
+}
+
+func TestEvaluateImportCachesModulesWithinOneRun(t *testing.T) {
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.molt")
+	libPath := filepath.Join(dir, "lib.molt")
+
+	files := map[string]string{
+		libPath: "" +
+			"xs = []\n" +
+			"fn tick() = {\n" +
+			"  push(xs, 1)\n" +
+			"  len(xs)\n" +
+			"}\n" +
+			"export tick",
+	}
+
+	readCounts := make(map[string]int)
+	evaluator := NewWithRuntime(nil, nil, nil, func(path string) ([]byte, error) {
+		readCounts[path]++
+		value, ok := files[path]
+		if !ok {
+			return nil, errors.New("missing file")
+		}
+
+		return []byte(value), nil
+	}, nil)
+
+	result, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, ""+
+		"import \"./lib.molt\"\n"+
+		"a = tick()\n"+
+		"import \"./lib.molt\"\n"+
+		"b = tick()\n"+
+		"[a, b]",
+	)
+	if err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+
+	if got := runtime.ShowValue(result); got != "[1, 2]" {
+		t.Fatalf("result = %q, want %q", got, "[1, 2]")
+	}
+
+	if got := readCounts[libPath]; got != 1 {
+		t.Fatalf("read count = %d, want 1", got)
+	}
+}
+
+func TestEvaluateImportUsesExportedFunctionsWithoutLeakingPrivateBindings(t *testing.T) {
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.molt")
+	libPath := filepath.Join(dir, "lib.molt")
+
+	files := map[string]string{
+		libPath: "" +
+			"helper = 40\n" +
+			"fn add2(x) = helper + x\n" +
+			"export add2",
+	}
+
+	evaluator := NewWithRuntime(nil, nil, nil, func(path string) ([]byte, error) {
+		value, ok := files[path]
+		if !ok {
+			return nil, errors.New("missing file")
+		}
+
+		return []byte(value), nil
+	}, nil)
+
+	result, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, ""+
+		"import \"./lib.molt\"\n"+
+		"add2(2)",
+	)
+	if err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+
+	number := expectValue[*runtime.NumberValue](t, result)
+	if number.Value != 42 {
+		t.Fatalf("result = %v, want 42", number.Value)
+	}
+
+	_, err = evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, ""+
+		"import \"./lib.molt\"\n"+
+		"helper",
+	)
+	runtimeErr := expectRuntimeError(t, err)
+	if runtimeErr.Diagnostic().Message != `undefined identifier "helper"` {
+		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, `undefined identifier "helper"`)
+	}
+}
+
 func TestEvaluateRuntimeErrors(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -166,6 +293,7 @@ func TestEvaluateRuntimeErrors(t *testing.T) {
 		{name: "invalid write_file path", input: `write_file(1, "x")`, message: `write_file expects string path as first argument, got "number"`},
 		{name: "invalid write_file text", input: `write_file("out.txt", 1)`, message: `write_file expects string text as second argument, got "number"`},
 		{name: "empty write_file path", input: `write_file("", "x")`, message: "write_file path cannot be empty"},
+		{name: "empty import path", input: `import ""`, message: "import path cannot be empty"},
 	}
 
 	for _, tc := range tests {
@@ -176,6 +304,125 @@ func TestEvaluateRuntimeErrors(t *testing.T) {
 				t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, tc.message)
 			}
 		})
+	}
+}
+
+func TestEvaluateImportReadFailure(t *testing.T) {
+	evaluator := NewWithRuntime(nil, nil, nil, func(path string) ([]byte, error) {
+		return nil, errors.New("boom")
+	}, nil)
+
+	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), "main.molt", `import "./missing.molt"`)
+	runtimeErr := expectRuntimeError(t, err)
+	if runtimeErr.Diagnostic().Message != `import failed for "./missing.molt": boom` {
+		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, `import failed for "./missing.molt": boom`)
+	}
+}
+
+func TestEvaluateImportDirectCycleFailure(t *testing.T) {
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.molt")
+	loopPath := filepath.Join(dir, "loop.molt")
+
+	files := map[string]string{
+		loopPath: `import "./loop.molt"`,
+	}
+
+	evaluator := NewWithRuntime(nil, nil, nil, func(path string) ([]byte, error) {
+		value, ok := files[path]
+		if !ok {
+			return nil, errors.New("missing file")
+		}
+
+		return []byte(value), nil
+	}, nil)
+
+	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, `import "./loop.molt"`)
+	runtimeErr := expectRuntimeError(t, err)
+	want := "import cycle detected: " + filepath.ToSlash(loopPath) + " -> " + filepath.ToSlash(loopPath)
+	if runtimeErr.Diagnostic().Message != want {
+		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, want)
+	}
+}
+
+func TestEvaluateImportIndirectCycleFailure(t *testing.T) {
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.molt")
+	aPath := filepath.Join(dir, "a.molt")
+	bPath := filepath.Join(dir, "b.molt")
+
+	files := map[string]string{
+		aPath: `import "./b.molt"`,
+		bPath: `import "./a.molt"`,
+	}
+
+	evaluator := NewWithRuntime(nil, nil, nil, func(path string) ([]byte, error) {
+		value, ok := files[path]
+		if !ok {
+			return nil, errors.New("missing file")
+		}
+
+		return []byte(value), nil
+	}, nil)
+
+	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, `import "./a.molt"`)
+	runtimeErr := expectRuntimeError(t, err)
+	want := "import cycle detected: " + filepath.ToSlash(aPath) + " -> " + filepath.ToSlash(bPath) + " -> " + filepath.ToSlash(aPath)
+	if runtimeErr.Diagnostic().Message != want {
+		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, want)
+	}
+}
+
+func TestEvaluateImportUndefinedExportFailure(t *testing.T) {
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.molt")
+	libPath := filepath.Join(dir, "lib.molt")
+
+	files := map[string]string{
+		libPath: `export missing`,
+	}
+
+	evaluator := NewWithRuntime(nil, nil, nil, func(path string) ([]byte, error) {
+		value, ok := files[path]
+		if !ok {
+			return nil, errors.New("missing file")
+		}
+
+		return []byte(value), nil
+	}, nil)
+
+	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, `import "./lib.molt"`)
+	runtimeErr := expectRuntimeError(t, err)
+	if runtimeErr.Diagnostic().Message != `exported name "missing" is not defined at module top level` {
+		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, `exported name "missing" is not defined at module top level`)
+	}
+}
+
+func TestEvaluateImportDuplicateExportFailure(t *testing.T) {
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.molt")
+	libPath := filepath.Join(dir, "lib.molt")
+
+	files := map[string]string{
+		libPath: "" +
+			"value = 1\n" +
+			"export value\n" +
+			"export value",
+	}
+
+	evaluator := NewWithRuntime(nil, nil, nil, func(path string) ([]byte, error) {
+		value, ok := files[path]
+		if !ok {
+			return nil, errors.New("missing file")
+		}
+
+		return []byte(value), nil
+	}, nil)
+
+	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, `import "./lib.molt"`)
+	runtimeErr := expectRuntimeError(t, err)
+	if runtimeErr.Diagnostic().Message != `duplicate export "value"` {
+		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, `duplicate export "value"`)
 	}
 }
 

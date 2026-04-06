@@ -14,6 +14,7 @@ The most important forms are:
 @{ ... }
 ~{ pattern -> replacement }
 eval(code)
+import "./module.molt"
 ```
 
 ## Values
@@ -45,6 +46,13 @@ Functions:
 ```txt
 fn add(a, b) = a + b
 fn(x) = x + 1
+```
+
+Imports:
+
+```txt
+import "./math.molt"
+export add
 ```
 
 Blocks:
@@ -111,6 +119,38 @@ eval(code)   # 11
 ```
 
 Each `eval(code)` re-runs the quoted AST from scratch in a fresh frame rooted in the captured environment.
+
+## Imports
+
+Imports load another local `.molt` file relative to the importing file:
+
+```txt
+import "./math.molt"
+```
+
+Current import behavior:
+
+- the imported file runs in its own module scope with access to builtins
+- the imported file does not automatically see the caller's local bindings
+- only explicitly exported top-level bindings are introduced into the current scope
+- non-exported module-local bindings stay private to the module
+- repeated imports of the same resolved module path share one cached module instance for that evaluation run
+- direct and indirect import cycles fail with a runtime diagnostic
+- the `import ...` expression itself evaluates to `nil`
+
+Example:
+
+```txt
+# math.molt
+fn add(a, b) = a + b
+base = 40
+export add
+export base
+
+# main.molt
+import "./math.molt"
+print(add(base, 2))
+```
 
 ## Mutations
 
@@ -235,6 +275,8 @@ show(~{ x -> y\n1 -> 2 }) -> "~{\n  x -> y\n  1 -> 2\n}"
 
 The runtime reports precise diagnostics for:
 
+- invalid exports
+- import failures
 - invalid mutation targets
 - invalid eval targets
 - invalid call targets

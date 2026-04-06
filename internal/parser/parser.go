@@ -379,6 +379,10 @@ func (p *Parser) parsePrimary() (ast.Expr, error) {
 	case p.match(lexer.Identifier):
 		token := p.previous()
 		return &ast.Identifier{SourceSpan: token.Span, Name: token.Value}, nil
+	case p.match(lexer.Export):
+		return p.parseExport(p.previous())
+	case p.match(lexer.Import):
+		return p.parseImport(p.previous())
 	case p.match(lexer.LeftParen):
 		return p.parseParenthesized()
 	case p.match(lexer.LeftBrace):
@@ -394,6 +398,40 @@ func (p *Parser) parsePrimary() (ast.Expr, error) {
 	default:
 		return nil, p.errorAt(p.peek(), fmt.Sprintf("expected expression, found %s", p.peek().Kind))
 	}
+}
+
+func (p *Parser) parseExport(start lexer.Token) (ast.Expr, error) {
+	nameToken, err := p.consume(lexer.Identifier, "expected identifier after 'export'")
+	if err != nil {
+		return nil, err
+	}
+
+	name := &ast.Identifier{
+		SourceSpan: nameToken.Span,
+		Name:       nameToken.Value,
+	}
+
+	return &ast.ExportExpr{
+		SourceSpan: p.mergeSpans(start.Span, nameToken.Span),
+		Name:       name,
+	}, nil
+}
+
+func (p *Parser) parseImport(start lexer.Token) (ast.Expr, error) {
+	pathToken, err := p.consume(lexer.String, "expected string literal after 'import'")
+	if err != nil {
+		return nil, err
+	}
+
+	path := &ast.StringLiteral{
+		SourceSpan: pathToken.Span,
+		Value:      pathToken.Value,
+	}
+
+	return &ast.ImportExpr{
+		SourceSpan: p.mergeSpans(start.Span, pathToken.Span),
+		Path:       path,
+	}, nil
 }
 
 func (p *Parser) parseParenthesized() (ast.Expr, error) {

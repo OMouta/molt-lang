@@ -1,0 +1,7 @@
+base = 40
+secret = 41
+
+fn add_secret(x) = x + secret
+
+export base
+export add_secret

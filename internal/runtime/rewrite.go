@@ -86,6 +86,16 @@ func CloneExpr(expr ast.Expr) ast.Expr {
 		return &ast.NilLiteral{SourceSpan: node.SourceSpan}
 	case *ast.Identifier:
 		return &ast.Identifier{SourceSpan: node.SourceSpan, Name: node.Name}
+	case *ast.ExportExpr:
+		return &ast.ExportExpr{
+			SourceSpan: node.SourceSpan,
+			Name:       cloneIdentifier(node.Name),
+		}
+	case *ast.ImportExpr:
+		return &ast.ImportExpr{
+			SourceSpan: node.SourceSpan,
+			Path:       CloneExpr(node.Path).(*ast.StringLiteral),
+		}
 	case *ast.GroupExpr:
 		return &ast.GroupExpr{SourceSpan: node.SourceSpan, Inner: CloneExpr(node.Inner)}
 	case *ast.ListLiteral:
@@ -191,6 +201,12 @@ func EqualExpr(left, right ast.Expr) bool {
 	case *ast.Identifier:
 		r, ok := right.(*ast.Identifier)
 		return ok && l.Name == r.Name
+	case *ast.ExportExpr:
+		r, ok := right.(*ast.ExportExpr)
+		return ok && EqualExpr(l.Name, r.Name)
+	case *ast.ImportExpr:
+		r, ok := right.(*ast.ImportExpr)
+		return ok && EqualExpr(l.Path, r.Path)
 	case *ast.GroupExpr:
 		r, ok := right.(*ast.GroupExpr)
 		return ok && EqualExpr(l.Inner, r.Inner)
@@ -250,6 +266,26 @@ func rewriteWithRule(expr ast.Expr, rule *ast.MutationRule) (ast.Expr, bool) {
 	}
 
 	switch node := expr.(type) {
+	case *ast.ExportExpr:
+		name, changed := rewriteIdentifier(node.Name, rule)
+		if !changed {
+			return expr, false
+		}
+
+		return &ast.ExportExpr{
+			SourceSpan: node.SourceSpan,
+			Name:       name,
+		}, true
+	case *ast.ImportExpr:
+		path, changed := rewriteWithRule(node.Path, rule)
+		if !changed {
+			return expr, false
+		}
+
+		return &ast.ImportExpr{
+			SourceSpan: node.SourceSpan,
+			Path:       path.(*ast.StringLiteral),
+		}, true
 	case *ast.UnaryExpr:
 		changed := false
 		operator := node.Operator
@@ -427,6 +463,10 @@ func validateMutationExpr(expr ast.Expr) error {
 		*ast.NilLiteral,
 		*ast.Identifier:
 		return nil
+	case *ast.ExportExpr:
+		return validateMutationExpr(node.Name)
+	case *ast.ImportExpr:
+		return validateMutationExpr(node.Path)
 	case *ast.GroupExpr:
 		return validateMutationExpr(node.Inner)
 	case *ast.ListLiteral:

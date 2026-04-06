@@ -8,15 +8,15 @@ import (
 )
 
 func TestParsePrimaryFormsAndSequences(t *testing.T) {
-	program := mustParse(t, "primary.molt", "{\n  [1, 2]\n  (\"ok\")\n  nil\n}")
+	program := mustParse(t, "primary.molt", "{\n  [1, 2]\n  (\"ok\")\n  nil\n  export value\n  import \"./lib.molt\"\n}")
 
 	if len(program.Expressions) != 1 {
 		t.Fatalf("program expression count = %d, want 1", len(program.Expressions))
 	}
 
 	block := expectExpr[*ast.BlockExpr](t, program.Expressions[0])
-	if len(block.Expressions) != 3 {
-		t.Fatalf("block expression count = %d, want 3", len(block.Expressions))
+	if len(block.Expressions) != 5 {
+		t.Fatalf("block expression count = %d, want 5", len(block.Expressions))
 	}
 
 	list := expectExpr[*ast.ListLiteral](t, block.Expressions[0])
@@ -32,6 +32,16 @@ func TestParsePrimaryFormsAndSequences(t *testing.T) {
 
 	if _, ok := block.Expressions[2].(*ast.NilLiteral); !ok {
 		t.Fatalf("expected nil literal, got %T", block.Expressions[2])
+	}
+
+	exportExpr := expectExpr[*ast.ExportExpr](t, block.Expressions[3])
+	if exportExpr.Name.Name != "value" {
+		t.Fatalf("export name = %q, want %q", exportExpr.Name.Name, "value")
+	}
+
+	importExpr := expectExpr[*ast.ImportExpr](t, block.Expressions[4])
+	if importExpr.Path.Value != "./lib.molt" {
+		t.Fatalf("import path = %q, want %q", importExpr.Path.Value, "./lib.molt")
 	}
 }
 
@@ -259,6 +269,8 @@ func TestParseRejectsMalformedPrograms(t *testing.T) {
 		{name: "chained equality", input: "a == b != c", message: "chained equality operators are not allowed"},
 		{name: "missing else", input: "if x -> y", message: "expected 'else' after then branch"},
 		{name: "same-line block sequence", input: "{ a b }", message: "expected line break or '}' after expression"},
+		{name: "export missing name", input: "export 1", message: "expected identifier after 'export'"},
+		{name: "import missing path", input: "import x", message: "expected string literal after 'import'"},
 		{name: "missing mutation arrow", input: "~{ x y }", message: "expected '->' in mutation rule"},
 		{name: "missing mutation operand", input: "code ~\nnext", message: "expected mutation after '~'"},
 		{name: "trailing comma", input: "[1,]", message: "expected expression after ','"},

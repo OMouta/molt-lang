@@ -19,6 +19,11 @@ func TestCLISmokeExamples(t *testing.T) {
 			wantOutput: "5\n6\n",
 		},
 		{
+			name:       "import export",
+			path:       "examples/import_export/main.molt",
+			wantOutput: "40\n42\n",
+		},
+		{
 			name:       "variant gallery",
 			path:       "examples/variant_gallery.molt",
 			wantOutput: "[6, 7, \"code\"]\n",

@@ -190,6 +190,10 @@ func formatExpr(expr ast.Expr, indent int) string {
 		return "nil"
 	case *ast.Identifier:
 		return node.Name
+	case *ast.ExportExpr:
+		return "export " + formatExpr(node.Name, indent)
+	case *ast.ImportExpr:
+		return "import " + formatExpr(node.Path, indent)
 	case *ast.GroupExpr:
 		return "(" + formatExpr(node.Inner, indent) + ")"
 	case *ast.ListLiteral:

@@ -22,6 +22,12 @@ func TestRegressionPrograms(t *testing.T) {
 			wantOutput: "5\n6\n",
 		},
 		{
+			name:       "import export example",
+			path:       "examples/import_export/main.molt",
+			wantValue:  "nil",
+			wantOutput: "40\n42\n",
+		},
+		{
 			name:       "variant gallery example",
 			path:       "examples/variant_gallery.molt",
 			wantValue:  "nil",

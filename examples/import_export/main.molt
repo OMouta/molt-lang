@@ -1,0 +1,4 @@
+import "./math.molt"
+
+print(base)
+print(add_secret(1))

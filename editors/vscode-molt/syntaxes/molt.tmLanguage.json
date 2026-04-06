@@ -289,6 +289,10 @@
     "keywords": {
       "patterns": [
         {
+          "name": "keyword.control.module.molt",
+          "match": "\\b(?:import|export)\\b"
+        },
+        {
           "name": "keyword.control.conditional.molt",
           "match": "\\b(?:if|else)\\b"
         },

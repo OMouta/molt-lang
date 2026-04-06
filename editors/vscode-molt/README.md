@@ -15,6 +15,7 @@ The TextMate grammar highlights:
 - comments
 - strings and escape sequences
 - numbers
+- `import` and `export`
 - `fn`, `if`, `else`, `and`, `or`, `not`
 - `true`, `false`, `nil`
 - builtins like `eval`, `type`, `len`, `push`, `show`, `print`

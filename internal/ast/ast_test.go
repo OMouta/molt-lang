@@ -21,6 +21,8 @@ var (
 	_ Expr = (*UnaryExpr)(nil)
 	_ Expr = (*BinaryExpr)(nil)
 	_ Expr = (*ConditionalExpr)(nil)
+	_ Expr = (*ExportExpr)(nil)
+	_ Expr = (*ImportExpr)(nil)
 	_ Expr = (*CallExpr)(nil)
 	_ Expr = (*NamedFunctionExpr)(nil)
 	_ Expr = (*FunctionLiteralExpr)(nil)
@@ -136,6 +138,8 @@ func TestFunctionCallQuoteAndMutationNodesPreserveShape(t *testing.T) {
 	span := file.MustSpan(0, 5)
 
 	name := &Identifier{SourceSpan: span, Name: "warp"}
+	exportName := &Identifier{SourceSpan: span, Name: "warp"}
+	importPath := &StringLiteral{SourceSpan: span, Value: "./lib.molt"}
 	paramA := &Identifier{SourceSpan: span, Name: "code"}
 	paramB := &Identifier{SourceSpan: span, Name: "times"}
 	body := &BinaryExpr{
@@ -162,6 +166,16 @@ func TestFunctionCallQuoteAndMutationNodesPreserveShape(t *testing.T) {
 		SourceSpan: span,
 		Callee:     name,
 		Arguments:  []Expr{paramA, body},
+	}
+
+	importExpr := &ImportExpr{
+		SourceSpan: span,
+		Path:       importPath,
+	}
+
+	exportExpr := &ExportExpr{
+		SourceSpan: span,
+		Name:       exportName,
 	}
 
 	quote := &QuoteExpr{
@@ -194,6 +208,8 @@ func TestFunctionCallQuoteAndMutationNodesPreserveShape(t *testing.T) {
 
 	assertSpan(t, namedFn, span)
 	assertSpan(t, anonFn, span)
+	assertSpan(t, exportExpr, span)
+	assertSpan(t, importExpr, span)
 	assertSpan(t, call, span)
 	assertSpan(t, quote, span)
 	assertSpan(t, ruleOne, span)
@@ -210,6 +226,14 @@ func TestFunctionCallQuoteAndMutationNodesPreserveShape(t *testing.T) {
 
 	if len(anonFn.Parameters) != 1 || anonFn.Body != body {
 		t.Fatalf("anonymous function shape was not preserved")
+	}
+
+	if exportExpr.Name != exportName {
+		t.Fatalf("export name was not preserved")
+	}
+
+	if importExpr.Path != importPath {
+		t.Fatalf("import path was not preserved")
 	}
 
 	if len(call.Arguments) != 2 || call.Callee != name {
