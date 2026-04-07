@@ -181,6 +181,49 @@ func TestRewritePreservesOriginalAstImmutability(t *testing.T) {
 	}
 }
 
+func TestRewriteTraversesRecordLiteralsAndFieldAccess(t *testing.T) {
+	span := helperSpan()
+	expr := &ast.RecordLiteral{
+		SourceSpan: span,
+		Fields: []*ast.RecordField{
+			{
+				SourceSpan: span,
+				Name:       identifier("name"),
+				Value: &ast.FieldAccessExpr{
+					SourceSpan: span,
+					Target:     identifier("profile"),
+					Name:       identifier("name"),
+				},
+			},
+		},
+	}
+
+	rewritten, err := Rewrite(expr, &MutationValue{
+		Rules: []*ast.MutationRule{
+			rule(identifier("name"), identifier("label")),
+			rule(identifier("profile"), identifier("user")),
+		},
+	})
+	if err != nil {
+		t.Fatalf("Rewrite returned error: %v", err)
+	}
+
+	record := expectExpr[*ast.RecordLiteral](t, rewritten)
+	if len(record.Fields) != 1 {
+		t.Fatalf("field count = %d, want 1", len(record.Fields))
+	}
+
+	if record.Fields[0].Name.Name != "label" {
+		t.Fatalf("record field name = %q, want %q", record.Fields[0].Name.Name, "label")
+	}
+
+	access := expectExpr[*ast.FieldAccessExpr](t, record.Fields[0].Value)
+	target := expectExpr[*ast.Identifier](t, access.Target)
+	if target.Name != "user" || access.Name.Name != "label" {
+		t.Fatalf("field access rewrite mismatch")
+	}
+}
+
 func identifier(name string) *ast.Identifier {
 	span := helperSpan()
 	return &ast.Identifier{SourceSpan: span, Name: name}

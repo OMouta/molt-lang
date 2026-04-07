@@ -29,6 +29,8 @@ func formatValue(value Value, indent int) string {
 		return "nil"
 	case *ListValue:
 		return formatListValue(v, indent)
+	case *RecordValue:
+		return formatRecordValue(v, indent)
 	case *UserFunctionValue:
 		return formatFunctionValue(v, indent)
 	case *NativeFunctionValue:
@@ -84,6 +86,46 @@ func formatListValue(list *ListValue, indent int) string {
 		lines = append(lines, line)
 	}
 	lines = append(lines, indentString(indent)+"]")
+	return strings.Join(lines, "\n")
+}
+
+func formatRecordValue(record *RecordValue, indent int) string {
+	if record == nil || len(record.Fields) == 0 {
+		return "record {}"
+	}
+
+	parts := make([]string, 0, len(record.Fields))
+	compact := "record { "
+	multiline := false
+
+	for i, field := range record.Fields {
+		formatted := field.Name + ": " + formatValue(field.Value, indent+1)
+		parts = append(parts, formatted)
+		if strings.Contains(formatted, "\n") {
+			multiline = true
+		}
+
+		if i > 0 {
+			compact += ", "
+		}
+		compact += formatted
+	}
+	compact += " }"
+
+	if !multiline && len(compact) <= compactDisplayLimit {
+		return compact
+	}
+
+	lines := []string{"record {"}
+	for i := range parts {
+		part := record.Fields[i].Name + ": " + formatValue(record.Fields[i].Value, 0)
+		line := indentString(indent+1) + indentMultiline(part, indent+1)
+		if i < len(parts)-1 {
+			line += ","
+		}
+		lines = append(lines, line)
+	}
+	lines = append(lines, indentString(indent)+"}")
 	return strings.Join(lines, "\n")
 }
 
@@ -226,6 +268,40 @@ func formatExpr(expr ast.Expr, indent int) string {
 		}
 		lines = append(lines, indentString(indent)+"]")
 		return strings.Join(lines, "\n")
+	case *ast.RecordLiteral:
+		if len(node.Fields) == 0 {
+			return "record {}"
+		}
+
+		parts := make([]string, 0, len(node.Fields))
+		compact := "record { "
+		multiline := false
+		for i, field := range node.Fields {
+			part := field.Name.Name + ": " + formatExpr(field.Value, indent+1)
+			parts = append(parts, part)
+			if strings.Contains(part, "\n") {
+				multiline = true
+			}
+			if i > 0 {
+				compact += ", "
+			}
+			compact += part
+		}
+		compact += " }"
+		if !multiline && len(compact) <= compactDisplayLimit {
+			return compact
+		}
+		lines := []string{"record {"}
+		for i := range parts {
+			part := node.Fields[i].Name.Name + ": " + formatExpr(node.Fields[i].Value, 0)
+			line := indentString(indent+1) + indentMultiline(part, indent+1)
+			if i < len(parts)-1 {
+				line += ","
+			}
+			lines = append(lines, line)
+		}
+		lines = append(lines, indentString(indent)+"}")
+		return strings.Join(lines, "\n")
 	case *ast.BlockExpr:
 		if len(node.Expressions) == 0 {
 			return "{\n" + indentString(indent) + "}"
@@ -240,6 +316,8 @@ func formatExpr(expr ast.Expr, indent int) string {
 		return node.Target.Name + " = " + formatExpr(node.Value, indent)
 	case *ast.IndexExpr:
 		return formatExpr(node.Target, indent) + "[" + formatExpr(node.Index, indent) + "]"
+	case *ast.FieldAccessExpr:
+		return formatExpr(node.Target, indent) + "." + node.Name.Name
 	case *ast.UnaryExpr:
 		if node.Operator == ast.UnaryNot {
 			return "not " + formatExpr(node.Operand, indent)

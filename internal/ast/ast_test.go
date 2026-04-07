@@ -15,6 +15,8 @@ var (
 	_ Expr = (*Identifier)(nil)
 	_ Expr = (*GroupExpr)(nil)
 	_ Expr = (*ListLiteral)(nil)
+	_ Expr = (*RecordLiteral)(nil)
+	_ Expr = (*FieldAccessExpr)(nil)
 	_ Expr = (*BlockExpr)(nil)
 	_ Expr = (*AssignmentExpr)(nil)
 	_ Expr = (*IndexExpr)(nil)
@@ -43,6 +45,9 @@ func TestLiteralIdentifierAndListNodesPreserveSpansAndPayloads(t *testing.T) {
 	ident := &Identifier{SourceSpan: span, Name: "value"}
 	group := &GroupExpr{SourceSpan: span, Inner: ident}
 	list := &ListLiteral{SourceSpan: span, Elements: []Expr{number, str, boolean, nilValue, operator, ident, group}}
+	recordField := &RecordField{SourceSpan: span, Name: ident, Value: number}
+	record := &RecordLiteral{SourceSpan: span, Fields: []*RecordField{recordField}}
+	fieldAccess := &FieldAccessExpr{SourceSpan: span, Target: ident, Name: &Identifier{SourceSpan: span, Name: "name"}}
 
 	assertSpan(t, number, span)
 	assertSpan(t, str, span)
@@ -52,6 +57,9 @@ func TestLiteralIdentifierAndListNodesPreserveSpansAndPayloads(t *testing.T) {
 	assertSpan(t, ident, span)
 	assertSpan(t, group, span)
 	assertSpan(t, list, span)
+	assertSpan(t, recordField, span)
+	assertSpan(t, record, span)
+	assertSpan(t, fieldAccess, span)
 
 	if number.Value != 3.14 {
 		t.Fatalf("number value = %v, want 3.14", number.Value)
@@ -79,6 +87,14 @@ func TestLiteralIdentifierAndListNodesPreserveSpansAndPayloads(t *testing.T) {
 
 	if len(list.Elements) != 7 {
 		t.Fatalf("list element count = %d, want 7", len(list.Elements))
+	}
+
+	if len(record.Fields) != 1 || record.Fields[0] != recordField {
+		t.Fatalf("record field was not preserved")
+	}
+
+	if fieldAccess.Target != ident || fieldAccess.Name.Name != "name" {
+		t.Fatalf("field access shape was not preserved")
 	}
 }
 

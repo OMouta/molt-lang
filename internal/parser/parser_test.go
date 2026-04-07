@@ -8,15 +8,15 @@ import (
 )
 
 func TestParsePrimaryFormsAndSequences(t *testing.T) {
-	program := mustParse(t, "primary.molt", "{\n  [1, 2]\n  (\"ok\")\n  nil\n  export value\n  import \"./lib.molt\"\n}")
+	program := mustParse(t, "primary.molt", "{\n  [1, 2]\n  (\"ok\")\n  nil\n  export value\n  import \"./lib.molt\"\n  record { answer: 42 }\n}")
 
 	if len(program.Expressions) != 1 {
 		t.Fatalf("program expression count = %d, want 1", len(program.Expressions))
 	}
 
 	block := expectExpr[*ast.BlockExpr](t, program.Expressions[0])
-	if len(block.Expressions) != 5 {
-		t.Fatalf("block expression count = %d, want 5", len(block.Expressions))
+	if len(block.Expressions) != 6 {
+		t.Fatalf("block expression count = %d, want 6", len(block.Expressions))
 	}
 
 	list := expectExpr[*ast.ListLiteral](t, block.Expressions[0])
@@ -42,6 +42,15 @@ func TestParsePrimaryFormsAndSequences(t *testing.T) {
 	importExpr := expectExpr[*ast.ImportExpr](t, block.Expressions[4])
 	if importExpr.Path.Value != "./lib.molt" {
 		t.Fatalf("import path = %q, want %q", importExpr.Path.Value, "./lib.molt")
+	}
+
+	record := expectExpr[*ast.RecordLiteral](t, block.Expressions[5])
+	if len(record.Fields) != 1 {
+		t.Fatalf("record field count = %d, want 1", len(record.Fields))
+	}
+
+	if record.Fields[0].Name.Name != "answer" {
+		t.Fatalf("record field name = %q, want %q", record.Fields[0].Name.Name, "answer")
 	}
 }
 
@@ -86,10 +95,10 @@ func TestParseFunctionSyntax(t *testing.T) {
 }
 
 func TestParseQuoteMutationAndPostfixForms(t *testing.T) {
-	program := mustParse(t, "postfix.molt", "warp @{ 1 + 2 }\ncode ~{ + -> * }\nm1 ~ m2\nxs[0]\nf(1, 2, 3)")
+	program := mustParse(t, "postfix.molt", "warp @{ 1 + 2 }\ncode ~{ + -> * }\nm1 ~ m2\nxs[0]\nuser.name\nusers[0].profile.name\nf(1, 2, 3)")
 
-	if len(program.Expressions) != 5 {
-		t.Fatalf("program expression count = %d, want 5", len(program.Expressions))
+	if len(program.Expressions) != 7 {
+		t.Fatalf("program expression count = %d, want 7", len(program.Expressions))
 	}
 
 	sugar := expectExpr[*ast.CallExpr](t, program.Expressions[0])
@@ -127,7 +136,23 @@ func TestParseQuoteMutationAndPostfixForms(t *testing.T) {
 		t.Fatalf("expected index expression, got %T", program.Expressions[3])
 	}
 
-	call := expectExpr[*ast.CallExpr](t, program.Expressions[4])
+	field := expectExpr[*ast.FieldAccessExpr](t, program.Expressions[4])
+	if field.Name.Name != "name" {
+		t.Fatalf("field name = %q, want %q", field.Name.Name, "name")
+	}
+
+	nestedField := expectExpr[*ast.FieldAccessExpr](t, program.Expressions[5])
+	innerField := expectExpr[*ast.FieldAccessExpr](t, nestedField.Target)
+	index := expectExpr[*ast.IndexExpr](t, innerField.Target)
+	if _, ok := index.Target.(*ast.Identifier); !ok {
+		t.Fatalf("nested field base target = %T, want identifier", index.Target)
+	}
+
+	if innerField.Name.Name != "profile" || nestedField.Name.Name != "name" {
+		t.Fatalf("nested field chain mismatch")
+	}
+
+	call := expectExpr[*ast.CallExpr](t, program.Expressions[6])
 	if len(call.Arguments) != 3 {
 		t.Fatalf("call argument count = %d, want 3", len(call.Arguments))
 	}
@@ -238,6 +263,41 @@ func TestParseMultiRuleMutationAndQuotedBlock(t *testing.T) {
 	}
 }
 
+func TestParseRecordLiteral(t *testing.T) {
+	program := mustParse(t, "records.molt", ""+
+		"record { answer: 42, nested: record { ok: true }, items: [1, 2] }\n"+
+		"record {}",
+	)
+
+	if len(program.Expressions) != 2 {
+		t.Fatalf("program expression count = %d, want 2", len(program.Expressions))
+	}
+
+	record := expectExpr[*ast.RecordLiteral](t, program.Expressions[0])
+	if len(record.Fields) != 3 {
+		t.Fatalf("record field count = %d, want 3", len(record.Fields))
+	}
+
+	if record.Fields[0].Name.Name != "answer" {
+		t.Fatalf("field 0 name = %q, want %q", record.Fields[0].Name.Name, "answer")
+	}
+
+	nested := expectExpr[*ast.RecordLiteral](t, record.Fields[1].Value)
+	if len(nested.Fields) != 1 || nested.Fields[0].Name.Name != "ok" {
+		t.Fatalf("nested record fields were not parsed correctly")
+	}
+
+	list := expectExpr[*ast.ListLiteral](t, record.Fields[2].Value)
+	if len(list.Elements) != 2 {
+		t.Fatalf("items field length = %d, want 2", len(list.Elements))
+	}
+
+	empty := expectExpr[*ast.RecordLiteral](t, program.Expressions[1])
+	if len(empty.Fields) != 0 {
+		t.Fatalf("empty record field count = %d, want 0", len(empty.Fields))
+	}
+}
+
 func TestParseSpecExamples(t *testing.T) {
 	input := "" +
 		"fn add(a, b) = a + b\n" +
@@ -271,6 +331,13 @@ func TestParseRejectsMalformedPrograms(t *testing.T) {
 		{name: "same-line block sequence", input: "{ a b }", message: "expected line break or '}' after expression"},
 		{name: "export missing name", input: "export 1", message: "expected identifier after 'export'"},
 		{name: "import missing path", input: "import x", message: "expected string literal after 'import'"},
+		{name: "record missing brace", input: "record answer: 1", message: "expected '{' after 'record'"},
+		{name: "record missing field name", input: "record { 1: 2 }", message: "expected record field name"},
+		{name: "record missing colon", input: "record { answer 42 }", message: "expected ':' after record field name"},
+		{name: "record duplicate field", input: "record { answer: 1, answer: 2 }", message: `duplicate record field "answer"`},
+		{name: "record trailing comma", input: "record { answer: 1, }", message: "expected record field after ','"},
+		{name: "field access missing name", input: "value.", message: "expected field name after '.'"},
+		{name: "field access newline", input: "value.\nname", message: "expected field name after '.'"},
 		{name: "missing mutation arrow", input: "~{ x y }", message: "expected '->' in mutation rule"},
 		{name: "missing mutation operand", input: "code ~\nnext", message: "expected mutation after '~'"},
 		{name: "trailing comma", input: "[1,]", message: "expected expression after ','"},

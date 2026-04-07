@@ -67,6 +67,10 @@ func (l *Lexer) nextToken() (Token, error) {
 		return l.token(RightBracket, start, ""), nil
 	case ',':
 		return l.token(Comma, start, ""), nil
+	case ':':
+		return l.token(Colon, start, ""), nil
+	case '.':
+		return l.token(Dot, start, ""), nil
 	case '+':
 		return l.token(Plus, start, ""), nil
 	case '*':

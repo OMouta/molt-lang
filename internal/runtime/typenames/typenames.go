@@ -6,6 +6,7 @@ const (
 	Boolean        = "boolean"
 	Nil            = "nil"
 	List           = "list"
+	Record         = "record"
 	Function       = "function"
 	NativeFunction = "native-function"
 	Code           = "code"
@@ -19,6 +20,7 @@ func All() []string {
 		Boolean,
 		Nil,
 		List,
+		Record,
 		Function,
 		NativeFunction,
 		Code,

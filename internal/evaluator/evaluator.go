@@ -125,12 +125,16 @@ func (e *Evaluator) evalExpr(env *runtime.Environment, expr ast.Expr) (runtime.V
 		return e.evalExpr(env, node.Inner)
 	case *ast.ListLiteral:
 		return e.evalListLiteral(env, node)
+	case *ast.RecordLiteral:
+		return e.evalRecordLiteral(env, node)
 	case *ast.BlockExpr:
 		return e.evalBlock(env, node)
 	case *ast.AssignmentExpr:
 		return e.evalAssignment(env, node)
 	case *ast.IndexExpr:
 		return e.evalIndex(env, node)
+	case *ast.FieldAccessExpr:
+		return e.evalFieldAccess(env, node)
 	case *ast.UnaryExpr:
 		return e.evalUnary(env, node)
 	case *ast.BinaryExpr:
@@ -171,6 +175,23 @@ func (e *Evaluator) evalListLiteral(env *runtime.Environment, expr *ast.ListLite
 	}
 
 	return &runtime.ListValue{Elements: elements}, nil
+}
+
+func (e *Evaluator) evalRecordLiteral(env *runtime.Environment, expr *ast.RecordLiteral) (runtime.Value, error) {
+	fields := make([]runtime.RecordField, 0, len(expr.Fields))
+	for _, field := range expr.Fields {
+		value, err := e.evalExpr(env, field.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		fields = append(fields, runtime.RecordField{
+			Name:  field.Name.Name,
+			Value: value,
+		})
+	}
+
+	return runtime.NewRecordValue(fields), nil
 }
 
 func (e *Evaluator) evalExport(env *runtime.Environment, expr *ast.ExportExpr) (runtime.Value, error) {
@@ -352,6 +373,25 @@ func (e *Evaluator) evalIndex(env *runtime.Environment, expr *ast.IndexExpr) (ru
 	}
 
 	return list.Elements[index], nil
+}
+
+func (e *Evaluator) evalFieldAccess(env *runtime.Environment, expr *ast.FieldAccessExpr) (runtime.Value, error) {
+	target, err := e.evalExpr(env, expr.Target)
+	if err != nil {
+		return nil, err
+	}
+
+	record, ok := target.(*runtime.RecordValue)
+	if !ok {
+		return nil, e.runtimeError(expr, fmt.Sprintf("cannot access field %q on value of type %q", expr.Name.Name, target.TypeName()))
+	}
+
+	value, ok := record.GetField(expr.Name.Name)
+	if !ok {
+		return nil, e.runtimeError(expr.Name, fmt.Sprintf("record has no field %q", expr.Name.Name))
+	}
+
+	return value, nil
 }
 
 func (e *Evaluator) evalUnary(env *runtime.Environment, expr *ast.UnaryExpr) (runtime.Value, error) {
@@ -767,6 +807,22 @@ func (e *Evaluator) ensureBuiltins(env *runtime.Environment) {
 		})
 	}
 
+	if _, ok := env.Get("keys"); !ok {
+		env.Define("keys", &runtime.NativeFunctionValue{
+			FunctionName: "keys",
+			Arity:        1,
+			Impl:         keysBuiltin,
+		})
+	}
+
+	if _, ok := env.Get("values"); !ok {
+		env.Define("values", &runtime.NativeFunctionValue{
+			FunctionName: "values",
+			Arity:        1,
+			Impl:         valuesBuiltin,
+		})
+	}
+
 	if _, ok := env.Get("range"); !ok {
 		env.Define("range", &runtime.NativeFunctionValue{
 			FunctionName: "range",
@@ -909,9 +965,11 @@ func lenBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, 
 		return &runtime.NumberValue{Value: float64(len(value.Elements))}, nil
 	case *runtime.StringValue:
 		return &runtime.NumberValue{Value: float64(len([]rune(value.Value)))}, nil
+	case *runtime.RecordValue:
+		return &runtime.NumberValue{Value: float64(value.Len())}, nil
 	default:
 		return nil, diagnostic.NewRuntimeError(
-			fmt.Sprintf("len expects list or string, got %q", args[0].TypeName()),
+			fmt.Sprintf("len expects list, string, or record, got %q", args[0].TypeName()),
 			ctx.CallSpan,
 		)
 	}
@@ -1057,23 +1115,64 @@ func replaceBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Val
 }
 
 func containsBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
-	value, ok := args[0].(*runtime.StringValue)
+	switch value := args[0].(type) {
+	case *runtime.StringValue:
+		needle, ok := args[1].(*runtime.StringValue)
+		if !ok {
+			return nil, diagnostic.NewRuntimeError(
+				fmt.Sprintf("contains expects string as second argument, got %q", args[1].TypeName()),
+				ctx.CallSpan,
+			)
+		}
+
+		return &runtime.BooleanValue{Value: strings.Contains(value.Value, needle.Value)}, nil
+	case *runtime.RecordValue:
+		key, ok := args[1].(*runtime.StringValue)
+		if !ok {
+			return nil, diagnostic.NewRuntimeError(
+				fmt.Sprintf("contains expects string key as second argument for records, got %q", args[1].TypeName()),
+				ctx.CallSpan,
+			)
+		}
+
+		_, exists := value.GetField(key.Value)
+		return &runtime.BooleanValue{Value: exists}, nil
+	default:
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("contains expects string or record as first argument, got %q", args[0].TypeName()),
+			ctx.CallSpan,
+		)
+	}
+}
+
+func keysBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	record, ok := args[0].(*runtime.RecordValue)
 	if !ok {
 		return nil, diagnostic.NewRuntimeError(
-			fmt.Sprintf("contains expects string as first argument, got %q", args[0].TypeName()),
+			fmt.Sprintf("keys expects record, got %q", args[0].TypeName()),
 			ctx.CallSpan,
 		)
 	}
 
-	needle, ok := args[1].(*runtime.StringValue)
+	keys := record.Keys()
+	elements := make([]runtime.Value, 0, len(keys))
+	for _, key := range keys {
+		elements = append(elements, &runtime.StringValue{Value: key})
+	}
+
+	return &runtime.ListValue{Elements: elements}, nil
+}
+
+func valuesBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	record, ok := args[0].(*runtime.RecordValue)
 	if !ok {
 		return nil, diagnostic.NewRuntimeError(
-			fmt.Sprintf("contains expects string as second argument, got %q", args[1].TypeName()),
+			fmt.Sprintf("values expects record, got %q", args[0].TypeName()),
 			ctx.CallSpan,
 		)
 	}
 
-	return &runtime.BooleanValue{Value: strings.Contains(value.Value, needle.Value)}, nil
+	return &runtime.ListValue{Elements: record.Values()}, nil
 }
 
 func rangeBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
@@ -1518,6 +1617,9 @@ func valuesEqual(left, right runtime.Value) bool {
 		return ok
 	case *runtime.ListValue:
 		r, ok := right.(*runtime.ListValue)
+		return ok && l == r
+	case *runtime.RecordValue:
+		r, ok := right.(*runtime.RecordValue)
 		return ok && l == r
 	case *runtime.UserFunctionValue:
 		r, ok := right.(*runtime.UserFunctionValue)

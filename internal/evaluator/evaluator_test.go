@@ -32,6 +32,28 @@ func TestEvaluateLiteralsListsAndIdentifierLookups(t *testing.T) {
 	if second.Value != 41 {
 		t.Fatalf("second element = %v, want 41", second.Value)
 	}
+
+	recordValue := mustEval(t, env, "record.molt", `record { answer: x + 1, nested: record { ok: true } }`)
+	record := expectValue[*runtime.RecordValue](t, recordValue)
+	if len(record.Fields) != 2 {
+		t.Fatalf("record field count = %d, want 2", len(record.Fields))
+	}
+
+	answer := expectValue[*runtime.NumberValue](t, record.Fields[0].Value)
+	if answer.Value != 42 {
+		t.Fatalf("answer field = %v, want 42", answer.Value)
+	}
+
+	nested := expectValue[*runtime.RecordValue](t, record.Fields[1].Value)
+	okValue, exists := nested.GetField("ok")
+	if !exists {
+		t.Fatalf("nested ok field lookup failed")
+	}
+
+	boolean := expectValue[*runtime.BooleanValue](t, okValue)
+	if !boolean.Value {
+		t.Fatalf("nested ok field = false, want true")
+	}
 }
 
 func TestEvaluateBlocksAndAssignmentSemantics(t *testing.T) {
@@ -65,6 +87,28 @@ func TestEvaluateIndexing(t *testing.T) {
 	number := expectValue[*runtime.NumberValue](t, result)
 	if number.Value != 20 {
 		t.Fatalf("result = %v, want 20", number.Value)
+	}
+}
+
+func TestEvaluateRecordFieldAccess(t *testing.T) {
+	result := mustEval(t, runtime.NewEnvironment(nil), "field_access.molt", ""+
+		"profile = record { name: \"molt\", stats: record { runs: 3 } }\n"+
+		"[profile.name, profile.stats.runs]",
+	)
+
+	values := expectValue[*runtime.ListValue](t, result)
+	if len(values.Elements) != 2 {
+		t.Fatalf("result length = %d, want 2", len(values.Elements))
+	}
+
+	name := expectValue[*runtime.StringValue](t, values.Elements[0])
+	if name.Value != "molt" {
+		t.Fatalf("name = %q, want %q", name.Value, "molt")
+	}
+
+	runs := expectValue[*runtime.NumberValue](t, values.Elements[1])
+	if runs.Value != 3 {
+		t.Fatalf("runs = %v, want 3", runs.Value)
 	}
 }
 
@@ -265,13 +309,15 @@ func TestEvaluateRuntimeErrors(t *testing.T) {
 		{name: "index out of bounds", input: "xs = [1]\nxs[1]", message: "list index 1 out of bounds"},
 		{name: "invalid index type", input: "xs = [1]\nxs[true]", message: `list index must be a number, got "boolean"`},
 		{name: "fractional index", input: "xs = [1]\nxs[1.5]", message: "list index must be a non-negative integer, got 1.5"},
+		{name: "field access invalid target", input: `(1).name`, message: `cannot access field "name" on value of type "number"`},
+		{name: "field access missing field", input: `record { answer: 42 }.name`, message: `record has no field "name"`},
 		{name: "undefined identifier", input: "missing", message: `undefined identifier "missing"`},
 		{name: "condition type", input: "if 1 -> 2 else -> 3", message: `if condition must be boolean, got "number"`},
 		{name: "user arity", input: "f = fn(x) = x\nf()", message: "expected 1 arguments but got 0"},
 		{name: "invalid eval target", input: "eval(10)", message: `eval expects code value, got "number"`},
 		{name: "invalid mutation rule", input: "~{ + -> 1 }", message: `invalid mutation rule 1: operator replacement rules must replace one operator with another`},
 		{name: "invalid mutation operand", input: "code = @{ 1 }\ncode ~ 1", message: `expected mutation value, got "number"`},
-		{name: "invalid len target", input: "len(1)", message: `len expects list or string, got "number"`},
+		{name: "invalid len target", input: "len(1)", message: `len expects list, string, or record, got "number"`},
 		{name: "invalid push target", input: "push(1, 2)", message: `push expects list as first argument, got "number"`},
 		{name: "invalid split target", input: `split(1, ",")`, message: `split expects string as first argument, got "number"`},
 		{name: "invalid join element", input: `join([1], ",")`, message: `join expects list of strings, but element 0 has type "number"`},
@@ -280,8 +326,11 @@ func TestEvaluateRuntimeErrors(t *testing.T) {
 		{name: "invalid replace text", input: `replace(1, "a", "b")`, message: `replace expects string as first argument, got "number"`},
 		{name: "invalid replace old", input: `replace("abc", 1, "b")`, message: `replace expects string as second argument, got "number"`},
 		{name: "invalid replace new", input: `replace("abc", "a", 1)`, message: `replace expects string as third argument, got "number"`},
-		{name: "invalid contains text", input: `contains(1, "a")`, message: `contains expects string as first argument, got "number"`},
+		{name: "invalid contains text", input: `contains(1, "a")`, message: `contains expects string or record as first argument, got "number"`},
 		{name: "invalid contains needle", input: `contains("abc", 1)`, message: `contains expects string as second argument, got "number"`},
+		{name: "invalid contains record key", input: `contains(record { answer: 42 }, 1)`, message: `contains expects string key as second argument for records, got "number"`},
+		{name: "invalid keys target", input: `keys(1)`, message: `keys expects record, got "number"`},
+		{name: "invalid values target", input: `values(1)`, message: `values expects record, got "number"`},
 		{name: "invalid range arity", input: `range(1, 2, 3)`, message: "range expects 1 or 2 arguments but got 3"},
 		{name: "invalid range integer", input: `range(1.5)`, message: "range expects integer at argument 1, got 1.5"},
 		{name: "invalid map callback", input: `map([1], 1)`, message: `map expects function as second argument, got "number"`},
@@ -736,6 +785,7 @@ func TestEvaluateBuiltins(t *testing.T) {
 	}), env, "builtins.molt", ""+
 		"xs = [1]\n"+
 		"same = push(xs, 2)\n"+
+		"rec = record { name: \"molt\", size: len(xs) }\n"+
 		"fn add(a, b) = a + b\n"+
 		"code = @{ 1 + 2 }\n"+
 		"mut = ~{ x -> y\n1 -> 2 }\n"+
@@ -758,6 +808,7 @@ func TestEvaluateBuiltins(t *testing.T) {
 		"  type(true),\n"+
 		"  type(nil),\n"+
 		"  type(xs),\n"+
+		"  type(rec),\n"+
 		"  type(add),\n"+
 		"  type(eval),\n"+
 		"  type(code),\n"+
@@ -766,6 +817,7 @@ func TestEvaluateBuiltins(t *testing.T) {
 		"  len(\"aé\"),\n"+
 		"  same == xs,\n"+
 		"  show(xs),\n"+
+		"  show(rec),\n"+
 		"  show(code),\n"+
 		"  show(mut),\n"+
 		"  show(add),\n"+
@@ -786,8 +838,8 @@ func TestEvaluateBuiltins(t *testing.T) {
 	}
 
 	values := expectValue[*runtime.ListValue](t, result)
-	if len(values.Elements) != 26 {
-		t.Fatalf("result length = %d, want 26", len(values.Elements))
+	if len(values.Elements) != 28 {
+		t.Fatalf("result length = %d, want 28", len(values.Elements))
 	}
 
 	wantTypes := []string{
@@ -796,6 +848,7 @@ func TestEvaluateBuiltins(t *testing.T) {
 		"boolean",
 		"nil",
 		"list",
+		"record",
 		"function",
 		"native-function",
 		"code",
@@ -809,71 +862,75 @@ func TestEvaluateBuiltins(t *testing.T) {
 		}
 	}
 
-	if got := expectValue[*runtime.NumberValue](t, values.Elements[9]); got.Value != 2 {
+	if got := expectValue[*runtime.NumberValue](t, values.Elements[10]); got.Value != 2 {
 		t.Fatalf("len(xs) = %v, want 2", got.Value)
 	}
 
-	if got := expectValue[*runtime.NumberValue](t, values.Elements[10]); got.Value != 2 {
+	if got := expectValue[*runtime.NumberValue](t, values.Elements[11]); got.Value != 2 {
 		t.Fatalf("len(\"aé\") = %v, want 2", got.Value)
 	}
 
-	if got := expectValue[*runtime.BooleanValue](t, values.Elements[11]); !got.Value {
+	if got := expectValue[*runtime.BooleanValue](t, values.Elements[12]); !got.Value {
 		t.Fatalf("push did not return the mutated list")
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[12]); got.Value != `[1, 2]` {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[13]); got.Value != `[1, 2]` {
 		t.Fatalf("show(xs) = %q, want %q", got.Value, `[1, 2]`)
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[13]); got.Value != "@{ (1 + 2) }" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[14]); got.Value != `record { name: "molt", size: 2 }` {
+		t.Fatalf("show(rec) = %q, want %q", got.Value, `record { name: "molt", size: 2 }`)
+	}
+
+	if got := expectValue[*runtime.StringValue](t, values.Elements[15]); got.Value != "@{ (1 + 2) }" {
 		t.Fatalf("show(code) = %q, want %q", got.Value, "@{ (1 + 2) }")
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[14]); got.Value != "~{\n  x -> y\n  1 -> 2\n}" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[16]); got.Value != "~{\n  x -> y\n  1 -> 2\n}" {
 		t.Fatalf("show(mut) = %q, want multiline mutation", got.Value)
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[15]); got.Value != "fn add(a, b) = (a + b)" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[17]); got.Value != "fn add(a, b) = (a + b)" {
 		t.Fatalf("show(add) = %q, want %q", got.Value, "fn add(a, b) = (a + b)")
 	}
 
-	if got := expectValue[*runtime.ListValue](t, values.Elements[16]); runtime.ShowValue(got) != `["alpha", "beta", "extra"]` {
+	if got := expectValue[*runtime.ListValue](t, values.Elements[18]); runtime.ShowValue(got) != `["alpha", "beta", "extra"]` {
 		t.Fatalf("mutated cli1 = %q, want %q", runtime.ShowValue(got), `["alpha", "beta", "extra"]`)
 	}
 
-	if got := expectValue[*runtime.ListValue](t, values.Elements[17]); runtime.ShowValue(got) != `["alpha", "beta"]` {
+	if got := expectValue[*runtime.ListValue](t, values.Elements[19]); runtime.ShowValue(got) != `["alpha", "beta"]` {
 		t.Fatalf("fresh cli2 = %q, want %q", runtime.ShowValue(got), `["alpha", "beta"]`)
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[18]); got.Value != "file contents" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[20]); got.Value != "file contents" {
 		t.Fatalf("read_file first = %q, want %q", got.Value, "file contents")
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[19]); got.Value != "file contents" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[21]); got.Value != "file contents" {
 		t.Fatalf("read_file second = %q, want %q", got.Value, "file contents")
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[20]); got.Value != "updated" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[22]); got.Value != "updated" {
 		t.Fatalf("written file = %q, want %q", got.Value, "updated")
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[21]); got.Value != "hello" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[23]); got.Value != "hello" {
 		t.Fatalf("input first = %q, want %q", got.Value, "hello")
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[22]); got.Value != "world" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[24]); got.Value != "world" {
 		t.Fatalf("input second = %q, want %q", got.Value, "world")
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[23]); got.Value != "" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[25]); got.Value != "" {
 		t.Fatalf("input third = %q, want empty string", got.Value)
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[24]); got.Value != "" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[26]); got.Value != "" {
 		t.Fatalf("stdin() first read after input() = %q, want empty string", got.Value)
 	}
 
-	if got := expectValue[*runtime.StringValue](t, values.Elements[25]); got.Value != "" {
+	if got := expectValue[*runtime.StringValue](t, values.Elements[27]); got.Value != "" {
 		t.Fatalf("stdin() second read = %q, want empty string", got.Value)
 	}
 }
@@ -997,6 +1054,44 @@ func TestEvaluateStdlibHelpers(t *testing.T) {
 
 	if got := expectValue[*runtime.NumberValue](t, values.Elements[18]); got.Value != 7 {
 		t.Fatalf("to_number(number) = %v, want 7", got.Value)
+	}
+}
+
+func TestEvaluateRecordHelpers(t *testing.T) {
+	result := mustEval(t, runtime.NewEnvironment(nil), "record_helpers.molt", ""+
+		"item = record { name: \"molt\", nested: record { ok: true }, count: 2 }\n"+
+		"[\n"+
+		"  len(item),\n"+
+		"  contains(item, \"name\"),\n"+
+		"  contains(item, \"missing\"),\n"+
+		"  keys(item),\n"+
+		"  values(item)\n"+
+		"]",
+	)
+
+	values := expectValue[*runtime.ListValue](t, result)
+	if len(values.Elements) != 5 {
+		t.Fatalf("result length = %d, want 5", len(values.Elements))
+	}
+
+	if got := expectValue[*runtime.NumberValue](t, values.Elements[0]); got.Value != 3 {
+		t.Fatalf("len(record) = %v, want 3", got.Value)
+	}
+
+	if got := expectValue[*runtime.BooleanValue](t, values.Elements[1]); !got.Value {
+		t.Fatalf("contains(record, name) should be true")
+	}
+
+	if got := expectValue[*runtime.BooleanValue](t, values.Elements[2]); got.Value {
+		t.Fatalf("contains(record, missing) should be false")
+	}
+
+	if got := runtime.ShowValue(values.Elements[3]); got != `["name", "nested", "count"]` {
+		t.Fatalf("keys(record) = %q, want %q", got, `["name", "nested", "count"]`)
+	}
+
+	if got := runtime.ShowValue(values.Elements[4]); got != `["molt", record { ok: true }, 2]` {
+		t.Fatalf("values(record) = %q, want ordered values list", got)
 	}
 }
 

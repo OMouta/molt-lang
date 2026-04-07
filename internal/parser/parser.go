@@ -299,6 +299,15 @@ func (p *Parser) finishPostfixChain(expr ast.Expr, allowMutationApply bool) (ast
 			continue
 		}
 
+		if p.check(lexer.Dot) && p.onSameLine(expr.Span(), p.peek()) {
+			expr, err = p.finishFieldAccess(expr)
+			if err != nil {
+				return nil, err
+			}
+
+			continue
+		}
+
 		if allowMutationApply && p.check(lexer.MutationStart) && p.onSameLine(expr.Span(), p.peek()) {
 			mutation, err := p.parseMutationLiteral()
 			if err != nil {
@@ -383,6 +392,8 @@ func (p *Parser) parsePrimary() (ast.Expr, error) {
 		return p.parseExport(p.previous())
 	case p.match(lexer.Import):
 		return p.parseImport(p.previous())
+	case p.match(lexer.Record):
+		return p.parseRecordLiteral(p.previous())
 	case p.match(lexer.LeftParen):
 		return p.parseParenthesized()
 	case p.match(lexer.LeftBrace):
@@ -482,6 +493,73 @@ func (p *Parser) parseListLiteral(start lexer.Token) (ast.Expr, error) {
 	}, nil
 }
 
+func (p *Parser) parseRecordLiteral(start lexer.Token) (ast.Expr, error) {
+	if _, err := p.consume(lexer.LeftBrace, "expected '{' after 'record'"); err != nil {
+		return nil, err
+	}
+
+	fields := make([]*ast.RecordField, 0, 2)
+	seen := make(map[string]struct{})
+
+	if p.check(lexer.RightBrace) {
+		end := p.advance()
+		return &ast.RecordLiteral{
+			SourceSpan: p.mergeSpans(start.Span, end.Span),
+			Fields:     fields,
+		}, nil
+	}
+
+	for {
+		nameToken, err := p.consume(lexer.Identifier, "expected record field name")
+		if err != nil {
+			return nil, err
+		}
+
+		if _, exists := seen[nameToken.Value]; exists {
+			return nil, p.errorAt(nameToken, fmt.Sprintf("duplicate record field %q", nameToken.Value))
+		}
+		seen[nameToken.Value] = struct{}{}
+
+		if _, err := p.consume(lexer.Colon, "expected ':' after record field name"); err != nil {
+			return nil, err
+		}
+
+		value, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+
+		name := &ast.Identifier{
+			SourceSpan: nameToken.Span,
+			Name:       nameToken.Value,
+		}
+
+		fields = append(fields, &ast.RecordField{
+			SourceSpan: p.mergeSpans(nameToken.Span, value.Span()),
+			Name:       name,
+			Value:      value,
+		})
+
+		if !p.match(lexer.Comma) {
+			break
+		}
+
+		if p.check(lexer.RightBrace) {
+			return nil, p.errorAt(p.peek(), "expected record field after ','")
+		}
+	}
+
+	end, err := p.consume(lexer.RightBrace, "expected '}' after record literal")
+	if err != nil {
+		return nil, err
+	}
+
+	return &ast.RecordLiteral{
+		SourceSpan: p.mergeSpans(start.Span, end.Span),
+		Fields:     fields,
+	}, nil
+}
+
 func (p *Parser) finishCall(callee ast.Expr) (ast.Expr, error) {
 	if _, err := p.consume(lexer.LeftParen, "expected '(' to start call"); err != nil {
 		return nil, err
@@ -518,6 +596,33 @@ func (p *Parser) finishIndex(target ast.Expr) (ast.Expr, error) {
 		SourceSpan: p.mergeSpans(target.Span(), end.Span),
 		Target:     target,
 		Index:      index,
+	}, nil
+}
+
+func (p *Parser) finishFieldAccess(target ast.Expr) (ast.Expr, error) {
+	dot, err := p.consume(lexer.Dot, "expected '.' to start field access")
+	if err != nil {
+		return nil, err
+	}
+
+	if !p.onSameLine(dot.Span, p.peek()) {
+		return nil, p.errorAt(p.peek(), "expected field name after '.'")
+	}
+
+	nameToken, err := p.consume(lexer.Identifier, "expected field name after '.'")
+	if err != nil {
+		return nil, err
+	}
+
+	name := &ast.Identifier{
+		SourceSpan: nameToken.Span,
+		Name:       nameToken.Value,
+	}
+
+	return &ast.FieldAccessExpr{
+		SourceSpan: p.mergeSpans(target.Span(), nameToken.Span),
+		Target:     target,
+		Name:       name,
 	}, nil
 }
 

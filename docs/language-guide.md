@@ -26,6 +26,7 @@ The current runtime includes:
 - `boolean`
 - `nil`
 - `list`
+- `record`
 - `function`
 - `native-function`
 - `code`
@@ -70,6 +71,15 @@ Lists:
 ```txt
 [1, 2, 3]
 xs[0]
+```
+
+Records:
+
+```txt
+record { name: "molt", version: 1 }
+record {}
+profile.name
+profile.stats.runs
 ```
 
 Conditionals:
@@ -190,7 +200,7 @@ Supported matching forms:
 : Return a fresh list of command-line arguments passed after the script path. In REPL mode it returns `[]`.
 
 `len(x)`
-: Return the length of a list or the number of Unicode code points in a string.
+: Return the length of a list, the number of Unicode code points in a string, or the number of fields in a record.
 
 `push(list, value)`
 : Append to a list in place and return the same list.
@@ -211,7 +221,13 @@ Supported matching forms:
 : Replace every occurrence of `old` inside `text` with `new`.
 
 `contains(text, needle)`
-: Return `true` if `needle` appears inside `text`, otherwise `false`.
+: Return `true` if `needle` appears inside `text`, or if a record contains a field with that string name.
+
+`keys(record)`
+: Return a list of record field names in the record's display order.
+
+`values(record)`
+: Return a list of record field values in the same order as `keys(record)`.
 
 `range(end)` / `range(start, end)`
 : Build an ascending list of integers with an exclusive end bound.
@@ -267,6 +283,7 @@ Examples:
 
 ```txt
 show([1, 2])              -> "[1, 2]"
+show(record { x: 1 })     -> "record { x: 1 }"
 show(@{ 2 + 3 })          -> "@{ (2 + 3) }"
 show(~{ x -> y\n1 -> 2 }) -> "~{\n  x -> y\n  1 -> 2\n}"
 ```
@@ -277,6 +294,8 @@ The runtime reports precise diagnostics for:
 
 - invalid exports
 - import failures
+- duplicate record field names
+- invalid record field access
 - invalid mutation targets
 - invalid eval targets
 - invalid call targets

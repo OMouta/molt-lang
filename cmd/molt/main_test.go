@@ -365,7 +365,7 @@ func TestRunREPLSupportsMultilineInputAndContinuesAfterErrors(t *testing.T) {
 	}
 
 	errOut := stderr.String()
-	if !strings.Contains(errOut, `<repl>:1:1: runtime error: len expects list or string, got "number"`) {
+	if !strings.Contains(errOut, `<repl>:1:1: runtime error: len expects list, string, or record, got "number"`) {
 		t.Fatalf("stderr = %q, want runtime diagnostic", errOut)
 	}
 

@@ -27,6 +27,15 @@ func TestShowValueFormatsPrimitiveAndCompactListValues(t *testing.T) {
 	if got := ShowValue(list); got != `[1, "ok", true, nil]` {
 		t.Fatalf("list = %q, want %q", got, `[1, "ok", true, nil]`)
 	}
+
+	record := NewRecordValue([]RecordField{
+		{Name: "name", Value: &StringValue{Value: "molt"}},
+		{Name: "ok", Value: &BooleanValue{Value: true}},
+	})
+
+	if got := ShowValue(record); got != `record { name: "molt", ok: true }` {
+		t.Fatalf("record = %q, want %q", got, `record { name: "molt", ok: true }`)
+	}
 }
 
 func TestShowValueFormatsFunctionsCodeMutationsAndNativeFunctions(t *testing.T) {
@@ -97,5 +106,42 @@ func TestShowValueFormatsMultilineNestedStructures(t *testing.T) {
 	want := "[\n  1,\n  @{\n    x\n    y\n  }\n]"
 	if got := ShowValue(value); got != want {
 		t.Fatalf("multiline list = %q, want %q", got, want)
+	}
+}
+
+func TestShowValueFormatsMultilineRecords(t *testing.T) {
+	value := NewRecordValue([]RecordField{
+		{Name: "name", Value: &StringValue{Value: "molt"}},
+		{Name: "data", Value: &ListValue{
+			Elements: []Value{
+				&NumberValue{Value: 1},
+				&CodeValue{
+					Body: &ast.BlockExpr{
+						Expressions: []ast.Expr{
+							&ast.Identifier{Name: "x"},
+							&ast.Identifier{Name: "y"},
+						},
+					},
+				},
+			},
+		}},
+	})
+
+	want := "record {\n  name: \"molt\",\n  data: [\n    1,\n    @{\n      x\n      y\n    }\n  ]\n}"
+	if got := ShowValue(value); got != want {
+		t.Fatalf("multiline record = %q, want %q", got, want)
+	}
+}
+
+func TestShowValueFormatsCodeContainingFieldAccess(t *testing.T) {
+	code := &CodeValue{
+		Body: &ast.FieldAccessExpr{
+			Target: &ast.Identifier{Name: "profile"},
+			Name:   &ast.Identifier{Name: "name"},
+		},
+	}
+
+	if got := ShowValue(code); got != "@{ profile.name }" {
+		t.Fatalf("code = %q, want %q", got, "@{ profile.name }")
 	}
 }

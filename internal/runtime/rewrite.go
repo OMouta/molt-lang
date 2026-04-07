@@ -100,6 +100,8 @@ func CloneExpr(expr ast.Expr) ast.Expr {
 		return &ast.GroupExpr{SourceSpan: node.SourceSpan, Inner: CloneExpr(node.Inner)}
 	case *ast.ListLiteral:
 		return &ast.ListLiteral{SourceSpan: node.SourceSpan, Elements: cloneExprs(node.Elements)}
+	case *ast.RecordLiteral:
+		return &ast.RecordLiteral{SourceSpan: node.SourceSpan, Fields: cloneRecordFields(node.Fields)}
 	case *ast.BlockExpr:
 		return &ast.BlockExpr{SourceSpan: node.SourceSpan, Expressions: cloneExprs(node.Expressions)}
 	case *ast.AssignmentExpr:
@@ -113,6 +115,12 @@ func CloneExpr(expr ast.Expr) ast.Expr {
 			SourceSpan: node.SourceSpan,
 			Target:     CloneExpr(node.Target),
 			Index:      CloneExpr(node.Index),
+		}
+	case *ast.FieldAccessExpr:
+		return &ast.FieldAccessExpr{
+			SourceSpan: node.SourceSpan,
+			Target:     CloneExpr(node.Target),
+			Name:       cloneIdentifier(node.Name),
 		}
 	case *ast.UnaryExpr:
 		return &ast.UnaryExpr{
@@ -213,6 +221,9 @@ func EqualExpr(left, right ast.Expr) bool {
 	case *ast.ListLiteral:
 		r, ok := right.(*ast.ListLiteral)
 		return ok && equalExprSlices(l.Elements, r.Elements)
+	case *ast.RecordLiteral:
+		r, ok := right.(*ast.RecordLiteral)
+		return ok && equalRecordFields(l.Fields, r.Fields)
 	case *ast.BlockExpr:
 		r, ok := right.(*ast.BlockExpr)
 		return ok && equalExprSlices(l.Expressions, r.Expressions)
@@ -222,6 +233,9 @@ func EqualExpr(left, right ast.Expr) bool {
 	case *ast.IndexExpr:
 		r, ok := right.(*ast.IndexExpr)
 		return ok && EqualExpr(l.Target, r.Target) && EqualExpr(l.Index, r.Index)
+	case *ast.FieldAccessExpr:
+		r, ok := right.(*ast.FieldAccessExpr)
+		return ok && EqualExpr(l.Target, r.Target) && EqualExpr(l.Name, r.Name)
 	case *ast.UnaryExpr:
 		r, ok := right.(*ast.UnaryExpr)
 		return ok && l.Operator == r.Operator && EqualExpr(l.Operand, r.Operand)
@@ -340,6 +354,13 @@ func rewriteWithRule(expr ast.Expr, rule *ast.MutationRule) (ast.Expr, bool) {
 		}
 
 		return &ast.ListLiteral{SourceSpan: node.SourceSpan, Elements: elements}, true
+	case *ast.RecordLiteral:
+		fields, changed := rewriteRecordFieldSlice(node.Fields, rule)
+		if !changed {
+			return expr, false
+		}
+
+		return &ast.RecordLiteral{SourceSpan: node.SourceSpan, Fields: fields}, true
 	case *ast.BlockExpr:
 		expressions, changed := rewriteExprSlice(node.Expressions, rule)
 		if !changed {
@@ -370,6 +391,18 @@ func rewriteWithRule(expr ast.Expr, rule *ast.MutationRule) (ast.Expr, bool) {
 			SourceSpan: node.SourceSpan,
 			Target:     target,
 			Index:      index,
+		}, true
+	case *ast.FieldAccessExpr:
+		target, targetChanged := rewriteWithRule(node.Target, rule)
+		name, nameChanged := rewriteIdentifier(node.Name, rule)
+		if !targetChanged && !nameChanged {
+			return expr, false
+		}
+
+		return &ast.FieldAccessExpr{
+			SourceSpan: node.SourceSpan,
+			Target:     target,
+			Name:       name,
 		}, true
 	case *ast.ConditionalExpr:
 		condition, conditionChanged := rewriteWithRule(node.Condition, rule)
@@ -476,6 +509,16 @@ func validateMutationExpr(expr ast.Expr) error {
 			}
 		}
 		return nil
+	case *ast.RecordLiteral:
+		for _, field := range node.Fields {
+			if err := validateMutationExpr(field.Name); err != nil {
+				return err
+			}
+			if err := validateMutationExpr(field.Value); err != nil {
+				return err
+			}
+		}
+		return nil
 	case *ast.BlockExpr:
 		for _, inner := range node.Expressions {
 			if err := validateMutationExpr(inner); err != nil {
@@ -493,6 +536,11 @@ func validateMutationExpr(expr ast.Expr) error {
 			return err
 		}
 		return validateMutationExpr(node.Index)
+	case *ast.FieldAccessExpr:
+		if err := validateMutationExpr(node.Target); err != nil {
+			return err
+		}
+		return validateMutationExpr(node.Name)
 	case *ast.UnaryExpr:
 		return validateMutationExpr(node.Operand)
 	case *ast.BinaryExpr:
@@ -640,6 +688,23 @@ func rewriteIdentifierSlice(items []*ast.Identifier, rule *ast.MutationRule) ([]
 	return rewritten, changed
 }
 
+func rewriteRecordFieldSlice(items []*ast.RecordField, rule *ast.MutationRule) ([]*ast.RecordField, bool) {
+	changed := false
+	rewritten := make([]*ast.RecordField, 0, len(items))
+	for _, item := range items {
+		name, nameChanged := rewriteIdentifier(item.Name, rule)
+		value, valueChanged := rewriteWithRule(item.Value, rule)
+		rewritten = append(rewritten, &ast.RecordField{
+			SourceSpan: item.SourceSpan,
+			Name:       name,
+			Value:      value,
+		})
+		changed = changed || nameChanged || valueChanged
+	}
+
+	return rewritten, changed
+}
+
 func rewriteRuleSlice(items []*ast.MutationRule, rule *ast.MutationRule) ([]*ast.MutationRule, bool) {
 	changed := false
 	rewritten := make([]*ast.MutationRule, 0, len(items))
@@ -688,6 +753,19 @@ func cloneIdentifiers(items []*ast.Identifier) []*ast.Identifier {
 	return cloned
 }
 
+func cloneRecordFields(items []*ast.RecordField) []*ast.RecordField {
+	cloned := make([]*ast.RecordField, 0, len(items))
+	for _, item := range items {
+		cloned = append(cloned, &ast.RecordField{
+			SourceSpan: item.SourceSpan,
+			Name:       cloneIdentifier(item.Name),
+			Value:      CloneExpr(item.Value),
+		})
+	}
+
+	return cloned
+}
+
 func equalExprSlices(left, right []ast.Expr) bool {
 	if len(left) != len(right) {
 		return false
@@ -709,6 +787,20 @@ func equalIdentifiers(left, right []*ast.Identifier) bool {
 
 	for i := range left {
 		if !EqualExpr(left[i], right[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func equalRecordFields(left, right []*ast.RecordField) bool {
+	if len(left) != len(right) {
+		return false
+	}
+
+	for i := range left {
+		if !EqualExpr(left[i].Name, right[i].Name) || !EqualExpr(left[i].Value, right[i].Value) {
 			return false
 		}
 	}

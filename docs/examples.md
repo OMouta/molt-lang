@@ -34,6 +34,22 @@ Expected output:
 42
 ```
 
+[`examples/records.molt`](../examples/records.molt)
+: Builds a record value in normal user code, reads nested fields, and demonstrates the record helper builtins while preserving field order.
+
+Expected output:
+
+```txt
+record { name: "molt", stats: record { runs: 3 } }
+molt
+3
+["name", "stats"]
+["molt", record { runs: 3 }]
+true
+2
+record
+```
+
 [`examples/variant_gallery.molt`](../examples/variant_gallery.molt)
 : A fuller end-to-end program combining functions, quotes, mutations, lists, `push`, `type`, `len`, and `eval`.
 
@@ -66,6 +82,7 @@ you got it!
 go run ./cmd/molt ./examples/basic_mutation.molt
 go run ./cmd/molt ./examples/compare_worlds.molt
 go run ./cmd/molt ./examples/import_export/main.molt
+go run ./cmd/molt ./examples/records.molt
 go run ./cmd/molt ./examples/variant_gallery.molt
 go run ./cmd/molt ./examples/guessing_game.molt
 ```

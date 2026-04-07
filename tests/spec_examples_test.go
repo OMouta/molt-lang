@@ -51,6 +51,30 @@ func TestSpecExamples(t *testing.T) {
 		expectShownValue(t, value, "1")
 	})
 
+	t.Run("record literal", func(t *testing.T) {
+		value, _ := mustExecuteProgram(t, "spec_record_literal.molt", ""+
+			"item = record { name: \"molt\", nested: record { ok: true } }\n"+
+			"[show(item), type(item)]",
+		)
+		expectShownValue(t, value, "[\n  \"record { name: \\\"molt\\\", nested: record { ok: true } }\",\n  \"record\"\n]")
+	})
+
+	t.Run("record field access", func(t *testing.T) {
+		value, _ := mustExecuteProgram(t, "spec_record_field_access.molt", ""+
+			"item = record { name: \"molt\", nested: record { ok: true } }\n"+
+			"[item.name, item.nested.ok]",
+		)
+		expectShownValue(t, value, "[\"molt\", true]")
+	})
+
+	t.Run("record helpers", func(t *testing.T) {
+		value, _ := mustExecuteProgram(t, "spec_record_helpers.molt", ""+
+			"item = record { name: \"molt\", nested: record { ok: true } }\n"+
+			"[len(item), contains(item, \"name\"), keys(item), values(item)]",
+		)
+		expectShownValue(t, value, `[2, true, ["name", "nested"], ["molt", record { ok: true }]]`)
+	})
+
 	t.Run("conditional", func(t *testing.T) {
 		value, _ := mustExecuteProgram(t, "spec_conditional.molt", "if true -> 1 else -> 2")
 		expectShownValue(t, value, "1")

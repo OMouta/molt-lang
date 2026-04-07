@@ -10,6 +10,7 @@ func TestAllReturnsCanonicalTypeNames(t *testing.T) {
 		"boolean",
 		"nil",
 		"list",
+		"record",
 		"function",
 		"native-function",
 		"code",

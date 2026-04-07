@@ -73,7 +73,7 @@ warp @{ 1 + 2 } ~ other != stuff <= more >= less < x > y
 }
 
 func TestLexMaximalMunchForOperatorsAndIntroducers(t *testing.T) {
-	tokens, err := Lex("operators.molt", "@{ ~{ -> - == != <= >= < > = ~")
+	tokens, err := Lex("operators.molt", "@{ ~{ -> . - == != <= >= < > = ~")
 	if err != nil {
 		t.Fatalf("Lex returned error: %v", err)
 	}
@@ -82,6 +82,7 @@ func TestLexMaximalMunchForOperatorsAndIntroducers(t *testing.T) {
 		QuoteStart,
 		MutationStart,
 		Arrow,
+		Dot,
 		Minus,
 		EqualEqual,
 		BangEqual,
@@ -124,6 +125,52 @@ func TestLexRecognizesModuleKeywords(t *testing.T) {
 
 	checkTokenValue(t, tokens[1], "value")
 	checkTokenValue(t, tokens[3], "./lib.molt")
+}
+
+func TestLexRecognizesRecordSyntax(t *testing.T) {
+	tokens, err := Lex("record.molt", `record { name: "molt", items: [1, 2] }`)
+	if err != nil {
+		t.Fatalf("Lex returned error: %v", err)
+	}
+
+	want := []Kind{
+		Record, LeftBrace, Identifier, Colon, String, Comma, Identifier, Colon, LeftBracket, Number, Comma, Number, RightBracket, RightBrace, EOF,
+	}
+
+	if len(tokens) != len(want) {
+		t.Fatalf("token count = %d, want %d", len(tokens), len(want))
+	}
+
+	for i := range want {
+		if tokens[i].Kind != want[i] {
+			t.Fatalf("token[%d] kind = %s, want %s", i, tokens[i].Kind, want[i])
+		}
+	}
+
+	checkTokenValue(t, tokens[2], "name")
+	checkTokenValue(t, tokens[4], "molt")
+	checkTokenValue(t, tokens[6], "items")
+}
+
+func TestLexRecognizesFieldAccessSyntax(t *testing.T) {
+	tokens, err := Lex("field_access.molt", `profile.name`)
+	if err != nil {
+		t.Fatalf("Lex returned error: %v", err)
+	}
+
+	want := []Kind{Identifier, Dot, Identifier, EOF}
+	if len(tokens) != len(want) {
+		t.Fatalf("token count = %d, want %d", len(tokens), len(want))
+	}
+
+	for i := range want {
+		if tokens[i].Kind != want[i] {
+			t.Fatalf("token[%d] kind = %s, want %s", i, tokens[i].Kind, want[i])
+		}
+	}
+
+	checkTokenValue(t, tokens[0], "profile")
+	checkTokenValue(t, tokens[2], "name")
 }
 
 func TestLexRejectsMalformedNumbers(t *testing.T) {

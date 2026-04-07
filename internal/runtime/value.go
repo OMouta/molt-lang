@@ -44,6 +44,87 @@ type ListValue struct {
 
 func (v *ListValue) TypeName() string { return typenames.List }
 
+type RecordField struct {
+	Name  string
+	Value Value
+}
+
+type RecordValue struct {
+	Fields     []RecordField
+	fieldIndex map[string]int
+}
+
+func NewRecordValue(fields []RecordField) *RecordValue {
+	cloned := make([]RecordField, len(fields))
+	copy(cloned, fields)
+
+	fieldIndex := make(map[string]int, len(cloned))
+	for index, field := range cloned {
+		fieldIndex[field.Name] = index
+	}
+
+	return &RecordValue{
+		Fields:     cloned,
+		fieldIndex: fieldIndex,
+	}
+}
+
+func (v *RecordValue) TypeName() string { return typenames.Record }
+
+func (v *RecordValue) GetField(name string) (Value, bool) {
+	if v == nil {
+		return nil, false
+	}
+
+	if v.fieldIndex == nil {
+		v.fieldIndex = make(map[string]int, len(v.Fields))
+		for index, field := range v.Fields {
+			v.fieldIndex[field.Name] = index
+		}
+	}
+
+	index, ok := v.fieldIndex[name]
+	if !ok {
+		return nil, false
+	}
+
+	return v.Fields[index].Value, true
+}
+
+func (v *RecordValue) Len() int {
+	if v == nil {
+		return 0
+	}
+
+	return len(v.Fields)
+}
+
+func (v *RecordValue) Keys() []string {
+	if v == nil || len(v.Fields) == 0 {
+		return nil
+	}
+
+	keys := make([]string, 0, len(v.Fields))
+	for _, field := range v.Fields {
+		keys = append(keys, field.Name)
+	}
+
+	return keys
+}
+
+func (v *RecordValue) Values() []Value {
+	if v == nil || len(v.Fields) == 0 {
+		return nil
+	}
+
+	values := make([]Value, 0, len(v.Fields))
+	for _, field := range v.Fields {
+		values = append(values, field.Value)
+	}
+
+	return values
+}
+
 type UserFunctionValue struct {
 	Name       string
 	Parameters []string

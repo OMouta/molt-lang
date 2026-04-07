@@ -25,6 +25,7 @@ func TestValueTypesCoverEveryRuntimeValueKind(t *testing.T) {
 		&BooleanValue{Value: true},
 		Nil,
 		&ListValue{Elements: []Value{&NumberValue{Value: 1}}},
+		NewRecordValue([]RecordField{{Name: "answer", Value: &NumberValue{Value: 42}}}),
 		&UserFunctionValue{Name: "double", Parameters: []string{"x"}, Body: body, Env: env},
 		native,
 		&CodeValue{Body: body, Env: env},
@@ -43,6 +44,7 @@ func TestValueTypesCoverEveryRuntimeValueKind(t *testing.T) {
 		"boolean",
 		"nil",
 		"list",
+		"record",
 		"function",
 		"native-function",
 		"code",
@@ -70,6 +72,50 @@ func TestValueTypesCoverEveryRuntimeValueKind(t *testing.T) {
 	count := expectValue[*NumberValue](t, result)
 	if count.Value != 2 {
 		t.Fatalf("native call result = %v, want 2", count.Value)
+	}
+}
+
+func TestRecordValuePreservesFieldOrderAndLookup(t *testing.T) {
+	record := NewRecordValue([]RecordField{
+		{Name: "first", Value: &NumberValue{Value: 1}},
+		{Name: "second", Value: &NumberValue{Value: 2}},
+	})
+
+	if len(record.Fields) != 2 {
+		t.Fatalf("field count = %d, want 2", len(record.Fields))
+	}
+
+	if record.Fields[0].Name != "first" || record.Fields[1].Name != "second" {
+		t.Fatalf("record field order was not preserved")
+	}
+
+	value, ok := record.GetField("second")
+	if !ok {
+		t.Fatalf("expected second field lookup to succeed")
+	}
+
+	number := expectValue[*NumberValue](t, value)
+	if number.Value != 2 {
+		t.Fatalf("lookup value = %v, want 2", number.Value)
+	}
+
+	if _, ok := record.GetField("missing"); ok {
+		t.Fatalf("missing field lookup should fail")
+	}
+
+	if got := record.Keys(); len(got) != 2 || got[0] != "first" || got[1] != "second" {
+		t.Fatalf("record keys = %v, want [first second]", got)
+	}
+
+	values := record.Values()
+	if len(values) != 2 {
+		t.Fatalf("record values length = %d, want 2", len(values))
+	}
+
+	first := expectValue[*NumberValue](t, values[0])
+	secondValue := expectValue[*NumberValue](t, values[1])
+	if first.Value != 1 || secondValue.Value != 2 {
+		t.Fatalf("record values = [%v, %v], want [1, 2]", first.Value, secondValue.Value)
 	}
 }
 

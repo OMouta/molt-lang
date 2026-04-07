@@ -20,6 +20,7 @@ const (
 	Else   Kind = "else"
 	Export Kind = "export"
 	Import Kind = "import"
+	Record Kind = "record"
 	And    Kind = "and"
 	Or     Kind = "or"
 	Not    Kind = "not"
@@ -34,6 +35,8 @@ const (
 	LeftBracket  Kind = "["
 	RightBracket Kind = "]"
 	Comma        Kind = ","
+	Colon        Kind = ":"
+	Dot          Kind = "."
 
 	Assign        Kind = "="
 	Arrow         Kind = "->"
@@ -75,6 +78,7 @@ var keywords = map[string]Kind{
 	"else":   Else,
 	"export": Export,
 	"import": Import,
+	"record": Record,
 	"and":    And,
 	"or":     Or,
 	"not":    Not,

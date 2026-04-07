@@ -1,0 +1,10 @@
+profile = record { name: "molt", stats: record { runs: 3 } }
+
+print(profile)
+print(profile.name)
+print(profile.stats.runs)
+print(keys(profile))
+print(values(profile))
+print(contains(profile, "name"))
+print(len(profile))
+print(type(profile))

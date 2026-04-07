@@ -28,6 +28,12 @@ func TestRegressionPrograms(t *testing.T) {
 			wantOutput: "40\n42\n",
 		},
 		{
+			name:       "records example",
+			path:       "examples/records.molt",
+			wantValue:  "nil",
+			wantOutput: "record { name: \"molt\", stats: record { runs: 3 } }\nmolt\n3\n[\"name\", \"stats\"]\n[\"molt\", record { runs: 3 }]\ntrue\n2\nrecord\n",
+		},
+		{
 			name:       "variant gallery example",
 			path:       "examples/variant_gallery.molt",
 			wantValue:  "nil",
