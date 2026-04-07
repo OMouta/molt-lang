@@ -8,3 +8,8 @@ print(values(profile))
 print(contains(profile, "name"))
 print(len(profile))
 print(type(profile))
+
+if contains(profile, "age") ->
+        print(profile.age) 
+    else -> 
+        print("Age not found in profile.")
