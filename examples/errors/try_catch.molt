@@ -1,0 +1,8 @@
+from_import = try import "./try_catch_helper.molt" catch err -> [err.message, err.data.source]
+print(from_import)
+
+from_runtime = try len(1) catch err -> err.message
+print(from_runtime)
+
+from_throw = try throw(error("bad input", record { field: "name" })) catch err -> err.data.field
+print(from_throw)

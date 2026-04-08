@@ -366,6 +366,8 @@ func formatExpr(expr ast.Expr, indent int) string {
 		return text
 	case *ast.WhileExpr:
 		return "while " + formatExpr(node.Condition, indent) + " -> " + formatExpr(node.Body, indent)
+	case *ast.TryCatchExpr:
+		return "try " + formatExpr(node.Body, indent) + " catch " + node.CatchBinding.Name + " -> " + formatExpr(node.CatchBranch, indent)
 	case *ast.ForInExpr:
 		return "for " + node.Binding.Name + " in " + formatExpr(node.Iterable, indent) + " -> " + formatExpr(node.Body, indent)
 	case *ast.CallExpr:

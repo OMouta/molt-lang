@@ -216,6 +216,64 @@ func TestEvaluateThrowPreservesSourceSpanAcrossFunctionAndEvalBoundaries(t *test
 	}
 }
 
+func TestEvaluateTryCatchReturnsBodyValueWhenNoFailureOccurs(t *testing.T) {
+	env := runtime.NewEnvironment(nil)
+	result := mustEval(t, env, "try_success.molt", "seen = 0\ntry (seen = 1) catch err -> 99")
+
+	number := expectValue[*runtime.NumberValue](t, result)
+	if number.Value != 1 {
+		t.Fatalf("result = %v, want 1", number.Value)
+	}
+
+	seen := expectValue[*runtime.NumberValue](t, env.MustGet("seen"))
+	if seen.Value != 1 {
+		t.Fatalf("seen = %v, want 1", seen.Value)
+	}
+
+	if _, ok := env.Get("err"); ok {
+		t.Fatalf("catch binding leaked into outer scope")
+	}
+}
+
+func TestEvaluateTryCatchReceivesThrownErrorValue(t *testing.T) {
+	result := mustEval(t, runtime.NewEnvironment(nil), "try_throw.molt", ""+
+		"try throw(error(\"boom\", record { code: 7 })) catch err -> [err.message, err.data.code]",
+	)
+
+	if got := runtime.ShowValue(result); got != `["boom", 7]` {
+		t.Fatalf("result = %q, want %q", got, `["boom", 7]`)
+	}
+}
+
+func TestEvaluateTryCatchConvertsRuntimeDiagnosticsToErrorValues(t *testing.T) {
+	result := mustEval(t, runtime.NewEnvironment(nil), "try_runtime_error.molt", ""+
+		"try len(1) catch err -> [type(err), err.message]",
+	)
+
+	values := expectValue[*runtime.ListValue](t, result)
+	if len(values.Elements) != 2 {
+		t.Fatalf("result length = %d, want 2", len(values.Elements))
+	}
+
+	typeName := expectValue[*runtime.StringValue](t, values.Elements[0])
+	if typeName.Value != "error" {
+		t.Fatalf("type = %q, want %q", typeName.Value, "error")
+	}
+
+	message := expectValue[*runtime.StringValue](t, values.Elements[1])
+	if message.Value != `len expects list, string, record, or error, got "number"` {
+		t.Fatalf("message = %q, want %q", message.Value, `len expects list, string, record, or error, got "number"`)
+	}
+}
+
+func TestEvaluateTryCatchDoesNotInterceptLoopControl(t *testing.T) {
+	_, err := evalStringWithEvaluator(nil, runtime.NewEnvironment(nil), "try_break.molt", "try break catch err -> nil")
+	runtimeErr := expectRuntimeError(t, err)
+	if runtimeErr.Diagnostic().Message != "break is only allowed inside loops" {
+		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, "break is only allowed inside loops")
+	}
+}
+
 func TestEvaluateWhileLoopsReturnNilAndUseIterationLocalScope(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
 	result := mustEval(t, env, "while_loop.molt", ""+
@@ -519,6 +577,63 @@ func TestEvaluateImportUsesExportedFunctionsWithoutLeakingPrivateBindings(t *tes
 	runtimeErr := expectRuntimeError(t, err)
 	if runtimeErr.Diagnostic().Message != `undefined identifier "helper"` {
 		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, `undefined identifier "helper"`)
+	}
+}
+
+func TestEvaluateTryCatchHandlesThrownImportFailures(t *testing.T) {
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.molt")
+	libPath := filepath.Join(dir, "lib.molt")
+
+	files := map[string]string{
+		libPath: `throw(error("module failed", record { source: "import" }))`,
+	}
+
+	evaluator := NewWithRuntime(nil, nil, nil, func(path string) ([]byte, error) {
+		value, ok := files[path]
+		if !ok {
+			return nil, errors.New("missing file")
+		}
+
+		return []byte(value), nil
+	}, nil)
+
+	result, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, `try import "./lib.molt" catch err -> [err.message, err.data.source]`)
+	if err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+
+	if got := runtime.ShowValue(result); got != `["module failed", "import"]` {
+		t.Fatalf("result = %q, want %q", got, `["module failed", "import"]`)
+	}
+}
+
+func TestEvaluateTryCatchHandlesRuntimeImportFailures(t *testing.T) {
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.molt")
+	libPath := filepath.Join(dir, "lib.molt")
+
+	files := map[string]string{
+		libPath: `missing`,
+	}
+
+	evaluator := NewWithRuntime(nil, nil, nil, func(path string) ([]byte, error) {
+		value, ok := files[path]
+		if !ok {
+			return nil, errors.New("missing file")
+		}
+
+		return []byte(value), nil
+	}, nil)
+
+	result, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, `try import "./lib.molt" catch err -> err.message`)
+	if err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+
+	stringValue := expectValue[*runtime.StringValue](t, result)
+	if stringValue.Value != `undefined identifier "missing"` {
+		t.Fatalf("result = %q, want %q", stringValue.Value, `undefined identifier "missing"`)
 	}
 }
 

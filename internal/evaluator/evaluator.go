@@ -2,6 +2,7 @@ package evaluator
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -103,6 +104,15 @@ func (e *Evaluator) EvalProgram(program *ast.Program, env *runtime.Environment) 
 	e.beginRun()
 	defer e.endRun()
 
+	value, err := e.evalProgramRaw(program, env)
+	if err != nil {
+		return nil, e.wrapControlFlowError(err)
+	}
+
+	return value, nil
+}
+
+func (e *Evaluator) evalProgramRaw(program *ast.Program, env *runtime.Environment) (runtime.Value, error) {
 	if len(program.Expressions) == 0 {
 		return runtime.Nil, nil
 	}
@@ -112,7 +122,7 @@ func (e *Evaluator) EvalProgram(program *ast.Program, env *runtime.Environment) 
 	for _, expr := range program.Expressions {
 		value, err := e.evalExpr(env, expr)
 		if err != nil {
-			return nil, e.wrapControlFlowError(err)
+			return nil, err
 		}
 
 		result = value
@@ -181,6 +191,8 @@ func (e *Evaluator) evalExpr(env *runtime.Environment, expr ast.Expr) (runtime.V
 		return e.evalConditional(env, node)
 	case *ast.WhileExpr:
 		return e.evalWhile(env, node)
+	case *ast.TryCatchExpr:
+		return e.evalTryCatch(env, node)
 	case *ast.ForInExpr:
 		return e.evalForIn(env, node)
 	case *ast.NamedFunctionExpr:
@@ -321,7 +333,7 @@ func (e *Evaluator) loadModule(expr *ast.ImportExpr, resolvedPath string) ([]run
 		e.moduleStack = e.moduleStack[:len(e.moduleStack)-1]
 	}()
 
-	if _, err := e.EvalProgram(program, moduleEnv); err != nil {
+	if _, err := e.evalProgramRaw(program, moduleEnv); err != nil {
 		return nil, err
 	}
 
@@ -719,6 +731,26 @@ func (e *Evaluator) evalWhile(env *runtime.Environment, expr *ast.WhileExpr) (ru
 			}
 		}
 	}
+}
+
+func (e *Evaluator) evalTryCatch(env *runtime.Environment, expr *ast.TryCatchExpr) (runtime.Value, error) {
+	value, err := e.evalExpr(env, expr.Body)
+	if err == nil {
+		return value, nil
+	}
+
+	if _, ok := asLoopControlSignal(err); ok {
+		return nil, err
+	}
+
+	caught, ok := caughtErrorValue(err)
+	if !ok {
+		return nil, err
+	}
+
+	catchEnv := runtime.NewEnvironment(env)
+	catchEnv.Define(expr.CatchBinding.Name, caught)
+	return e.evalExpr(catchEnv, expr.CatchBranch)
 }
 
 func (e *Evaluator) evalForIn(env *runtime.Environment, expr *ast.ForInExpr) (runtime.Value, error) {
@@ -1941,6 +1973,23 @@ func asLoopControlSignal(err error) (loopControlSignal, bool) {
 func asRaisedErrorSignal(err error) (raisedErrorSignal, bool) {
 	signal, ok := err.(raisedErrorSignal)
 	return signal, ok
+}
+
+func caughtErrorValue(err error) (*runtime.ErrorValue, bool) {
+	if raised, ok := asRaisedErrorSignal(err); ok {
+		if raised.value != nil {
+			return raised.value, true
+		}
+
+		return runtime.NewErrorValue("thrown error", nil, false), true
+	}
+
+	var runtimeErr diagnostic.RuntimeError
+	if errors.As(err, &runtimeErr) {
+		return runtime.NewErrorValue(runtimeErr.Diagnostic().Message, nil, false), true
+	}
+
+	return nil, false
 }
 
 func (e *Evaluator) moduleLoadIndex(path string) int {

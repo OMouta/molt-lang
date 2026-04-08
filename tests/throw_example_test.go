@@ -8,7 +8,7 @@ import (
 )
 
 func TestThrowExampleProducesExpectedRuntimeDiagnostic(t *testing.T) {
-	_, _, err := executeFile(t, "examples/basic/throw_error.molt")
+	_, _, err := executeFile(t, "examples/errors/throw_error.molt")
 	runtimeErr := expectRuntimeDiagnostic(t, err)
 
 	diag := runtimeErr.Diagnostic()

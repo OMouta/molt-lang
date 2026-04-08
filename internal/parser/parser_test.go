@@ -277,6 +277,27 @@ func TestParseConditionalWithoutElse(t *testing.T) {
 	}
 }
 
+func TestParseTryCatch(t *testing.T) {
+	program := mustParse(t, "try_catch.molt", "try import \"./lib.molt\" catch err -> err.message")
+	if len(program.Expressions) != 1 {
+		t.Fatalf("program expression count = %d, want 1", len(program.Expressions))
+	}
+
+	tryExpr := expectExpr[*ast.TryCatchExpr](t, program.Expressions[0])
+	if _, ok := tryExpr.Body.(*ast.ImportExpr); !ok {
+		t.Fatalf("try body = %T, want import", tryExpr.Body)
+	}
+
+	if tryExpr.CatchBinding.Name != "err" {
+		t.Fatalf("catch binding = %q, want %q", tryExpr.CatchBinding.Name, "err")
+	}
+
+	field := expectExpr[*ast.FieldAccessExpr](t, tryExpr.CatchBranch)
+	if field.Name.Name != "message" {
+		t.Fatalf("field name = %q, want %q", field.Name.Name, "message")
+	}
+}
+
 func TestParseLoopControlInsideConditionalBranches(t *testing.T) {
 	program := mustParse(t, "loop_control.molt", "while true -> if false -> break else -> continue")
 	if len(program.Expressions) != 1 {
@@ -391,6 +412,9 @@ func TestParseRejectsMalformedPrograms(t *testing.T) {
 		{name: "chained relational", input: "a < b < c", message: "chained relational operators are not allowed"},
 		{name: "chained equality", input: "a == b != c", message: "chained equality operators are not allowed"},
 		{name: "else missing arrow", input: "if x -> y else z", message: "expected '->' after else"},
+		{name: "try missing catch", input: "try x", message: "expected 'catch' after try body"},
+		{name: "catch missing binding", input: "try x catch -> y", message: "expected identifier after 'catch'"},
+		{name: "catch missing arrow", input: "try x catch err y", message: "expected '->' after catch binding"},
 		{name: "while missing arrow", input: "while x y", message: "expected '->' after while condition"},
 		{name: "for missing binding", input: "for 1 in xs -> x", message: "expected identifier after 'for'"},
 		{name: "for missing in", input: "for item xs -> x", message: "expected 'in' after loop binding"},

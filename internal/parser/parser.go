@@ -151,6 +151,43 @@ func (p *Parser) parseConditional() (ast.Expr, error) {
 		}, nil
 	}
 
+	if p.match(lexer.Try) {
+		start := p.previous()
+
+		body, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+
+		if _, err := p.consume(lexer.Catch, "expected 'catch' after try body"); err != nil {
+			return nil, err
+		}
+
+		bindingToken, err := p.consume(lexer.Identifier, "expected identifier after 'catch'")
+		if err != nil {
+			return nil, err
+		}
+
+		if _, err := p.consume(lexer.Arrow, "expected '->' after catch binding"); err != nil {
+			return nil, err
+		}
+
+		catchBranch, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+
+		return &ast.TryCatchExpr{
+			SourceSpan: p.mergeSpans(start.Span, catchBranch.Span()),
+			Body:       body,
+			CatchBinding: &ast.Identifier{
+				SourceSpan: bindingToken.Span,
+				Name:       bindingToken.Value,
+			},
+			CatchBranch: catchBranch,
+		}, nil
+	}
+
 	if !p.match(lexer.If) {
 		return p.parseAssignment()
 	}

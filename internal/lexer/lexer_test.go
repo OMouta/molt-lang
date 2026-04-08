@@ -185,6 +185,28 @@ func TestLexRecognizesLoopControlKeywords(t *testing.T) {
 	}
 }
 
+func TestLexRecognizesTryCatchKeywords(t *testing.T) {
+	tokens, err := Lex("try_catch.molt", "try risky catch err -> err")
+	if err != nil {
+		t.Fatalf("Lex returned error: %v", err)
+	}
+
+	want := []Kind{Try, Identifier, Catch, Identifier, Arrow, Identifier, EOF}
+	if len(tokens) != len(want) {
+		t.Fatalf("token count = %d, want %d", len(tokens), len(want))
+	}
+
+	for i := range want {
+		if tokens[i].Kind != want[i] {
+			t.Fatalf("token[%d] kind = %s, want %s", i, tokens[i].Kind, want[i])
+		}
+	}
+
+	checkTokenValue(t, tokens[1], "risky")
+	checkTokenValue(t, tokens[3], "err")
+	checkTokenValue(t, tokens[5], "err")
+}
+
 func TestLexRecognizesRecordSyntax(t *testing.T) {
 	tokens, err := Lex("record.molt", `record { name: "molt", items: [1, 2] }`)
 	if err != nil {

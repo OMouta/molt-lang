@@ -91,6 +91,7 @@ Conditionals:
 ```txt
 if cond -> expr
 if cond -> expr else -> expr
+try expr catch err -> expr
 ```
 
 Loops:
@@ -147,6 +148,10 @@ Each `while` iteration runs in a fresh child scope rooted in the surrounding env
 `for` currently iterates over lists and strings. String iteration walks Unicode code points and yields one-character strings. A `for` expression also returns `nil`, and each iteration uses the same fresh child-scope model as `while`: outer bindings can be updated, but the loop binding and any new locals do not leak after the iteration ends.
 
 `break` exits the nearest enclosing loop immediately. `continue` skips the rest of the current iteration and resumes with the next one. Both forms work through surrounding block scopes, but execution raises a runtime diagnostic if either form is reached outside a loop body.
+
+`try ... catch ...` is also an expression. If the `try` body finishes normally, the whole expression returns that value and the `catch` branch is skipped. If the `try` body raises a failure, the `catch` branch runs in a fresh child scope with its binding set to an error value.
+
+Explicit `throw(error(...))` preserves the original error value, including optional `data`. Ordinary runtime diagnostics such as invalid builtin calls or import-time runtime failures are catchable too, but they are normalized to `error(message)` values. Loop control such as `break` and `continue` is not catchable.
 
 ## Quote And Eval
 
@@ -230,7 +235,7 @@ Supported matching forms:
 : Return a fresh list of command-line arguments passed after the script path. In REPL mode it returns `[]`.
 
 `len(x)`
-: Return the length of a list, the number of Unicode code points in a string, or the number of fields in a record.
+: Return the length of a list, the number of Unicode code points in a string, or the number of fields in a record or error value.
 
 `push(list, value)`
 : Append to a list in place and return the same list.

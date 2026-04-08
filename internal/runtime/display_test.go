@@ -192,6 +192,23 @@ func TestShowValueFormatsCodeContainingForInLoop(t *testing.T) {
 	}
 }
 
+func TestShowValueFormatsCodeContainingTryCatch(t *testing.T) {
+	code := &CodeValue{
+		Body: &ast.TryCatchExpr{
+			Body:         &ast.Identifier{Name: "risky"},
+			CatchBinding: &ast.Identifier{Name: "err"},
+			CatchBranch: &ast.FieldAccessExpr{
+				Target: &ast.Identifier{Name: "err"},
+				Name:   &ast.Identifier{Name: "message"},
+			},
+		},
+	}
+
+	if got := ShowValue(code); got != "@{ try risky catch err -> err.message }" {
+		t.Fatalf("code = %q, want %q", got, "@{ try risky catch err -> err.message }")
+	}
+}
+
 func TestShowValueFormatsCodeContainingLoopControl(t *testing.T) {
 	code := &CodeValue{
 		Body: &ast.BlockExpr{

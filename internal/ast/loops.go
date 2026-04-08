@@ -11,6 +11,16 @@ type WhileExpr struct {
 func (n *WhileExpr) Span() source.Span { return n.SourceSpan }
 func (*WhileExpr) exprNode()           {}
 
+type TryCatchExpr struct {
+	SourceSpan   source.Span
+	Body         Expr
+	CatchBinding *Identifier
+	CatchBranch  Expr
+}
+
+func (n *TryCatchExpr) Span() source.Span { return n.SourceSpan }
+func (*TryCatchExpr) exprNode()           {}
+
 type ForInExpr struct {
 	SourceSpan source.Span
 	Binding    *Identifier

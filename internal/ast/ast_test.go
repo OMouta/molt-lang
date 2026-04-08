@@ -24,6 +24,7 @@ var (
 	_ Expr = (*BinaryExpr)(nil)
 	_ Expr = (*ConditionalExpr)(nil)
 	_ Expr = (*WhileExpr)(nil)
+	_ Expr = (*TryCatchExpr)(nil)
 	_ Expr = (*ForInExpr)(nil)
 	_ Expr = (*BreakExpr)(nil)
 	_ Expr = (*ContinueExpr)(nil)
@@ -125,6 +126,12 @@ func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
 		Condition:  &BooleanLiteral{SourceSpan: span, Value: true},
 		Body:       assign,
 	}
+	tryExpr := &TryCatchExpr{
+		SourceSpan:   span,
+		Body:         assign,
+		CatchBinding: &Identifier{SourceSpan: span, Name: "err"},
+		CatchBranch:  value,
+	}
 	forExpr := &ForInExpr{
 		SourceSpan: span,
 		Binding:    name,
@@ -141,6 +148,7 @@ func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
 	assertSpan(t, binary, span)
 	assertSpan(t, conditional, span)
 	assertSpan(t, whileExpr, span)
+	assertSpan(t, tryExpr, span)
 	assertSpan(t, forExpr, span)
 	assertSpan(t, breakExpr, span)
 	assertSpan(t, continueExpr, span)
@@ -171,6 +179,10 @@ func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
 
 	if whileExpr.Condition == nil || whileExpr.Body != assign {
 		t.Fatalf("while shape was not preserved")
+	}
+
+	if tryExpr.Body != assign || tryExpr.CatchBinding.Name != "err" || tryExpr.CatchBranch != value {
+		t.Fatalf("try/catch shape was not preserved")
 	}
 
 	if forExpr.Binding != name || forExpr.Iterable != other || forExpr.Body != assign {

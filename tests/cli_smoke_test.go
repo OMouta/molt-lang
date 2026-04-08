@@ -30,8 +30,13 @@ func TestCLISmokeExamples(t *testing.T) {
 		},
 		{
 			name:       "error values",
-			path:       "examples/basic/error_values.molt",
+			path:       "examples/errors/error_values.molt",
 			wantOutput: "error\nmissing file\nnote.txt\n[\"message\", \"data\"]\nerror {\n  message: \"missing file\",\n  data: record { path: \"note.txt\" }\n}\n",
+		},
+		{
+			name:       "try catch",
+			path:       "examples/errors/try_catch.molt",
+			wantOutput: "[\"helper failed\", \"import\"]\nlen expects list, string, record, or error, got \"number\"\nname\n",
 		},
 		{
 			name:       "variant gallery",

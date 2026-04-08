@@ -4,10 +4,13 @@ This directory contains runnable and test-verified `@molt` example programs.
 
 - `basic/basic_mutation.molt`
 - `basic/compare_worlds.molt`
-- `basic/error_values.molt`
-- `basic/throw_error.molt`
 - `basic/records.molt`
 - `basic/variant_gallery.molt`
+
+- `errors/error_values.molt`
+- `errors/try_catch.molt`
+- `errors/try_catch_helper.molt`
+- `errors/throw_error.molt`
   
 - `loops/for_loop.molt`
 - `loops/break_continue.molt`

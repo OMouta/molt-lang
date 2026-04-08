@@ -83,6 +83,13 @@ func TestSpecExamples(t *testing.T) {
 		expectShownValue(t, value, `["error", "missing file", "note.txt"]`)
 	})
 
+	t.Run("try catch", func(t *testing.T) {
+		value, _ := mustExecuteProgram(t, "spec_try_catch.molt", ""+
+			"try throw(error(\"boom\", record { code: 7 })) catch err -> [err.message, err.data.code]",
+		)
+		expectShownValue(t, value, `["boom", 7]`)
+	})
+
 	t.Run("while loop", func(t *testing.T) {
 		value, _ := mustExecuteProgram(t, "spec_while_loop.molt", ""+
 			"x = 0\n"+

@@ -35,9 +35,15 @@ func TestRegressionPrograms(t *testing.T) {
 		},
 		{
 			name:       "error values example",
-			path:       "examples/basic/error_values.molt",
+			path:       "examples/errors/error_values.molt",
 			wantValue:  "nil",
 			wantOutput: "error\nmissing file\nnote.txt\n[\"message\", \"data\"]\nerror {\n  message: \"missing file\",\n  data: record { path: \"note.txt\" }\n}\n",
+		},
+		{
+			name:       "try catch example",
+			path:       "examples/errors/try_catch.molt",
+			wantValue:  "nil",
+			wantOutput: "[\"helper failed\", \"import\"]\nlen expects list, string, record, or error, got \"number\"\nname\n",
 		},
 		{
 			name:       "variant gallery example",
