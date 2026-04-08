@@ -1,0 +1,14 @@
+describe = fn(value) = match value {
+  1 -> "one"
+  2 -> "two"
+  name -> name
+}
+
+fallback = match false {
+  true -> "yes"
+  _ -> "no"
+}
+
+print(describe(2))
+print(describe("molt"))
+print(fallback)

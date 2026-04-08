@@ -225,6 +225,29 @@ func TestShowValueFormatsCodeContainingTryCatch(t *testing.T) {
 	}
 }
 
+func TestShowValueFormatsCodeContainingMatch(t *testing.T) {
+	code := &CodeValue{
+		Body: &ast.MatchExpr{
+			Subject: &ast.Identifier{Name: "value"},
+			Cases: []*ast.MatchCase{
+				{
+					Pattern: &ast.NumberLiteral{Value: 1},
+					Branch:  &ast.StringLiteral{Value: "one"},
+				},
+				{
+					Pattern: &ast.Identifier{Name: "_"},
+					Branch:  &ast.StringLiteral{Value: "other"},
+				},
+			},
+		},
+	}
+
+	want := "@{\n  match value {\n      1 -> \"one\"\n      _ -> \"other\"\n    }\n}"
+	if got := ShowValue(code); got != want {
+		t.Fatalf("code = %q, want %q", got, want)
+	}
+}
+
 func TestShowValueFormatsCodeContainingLoopControl(t *testing.T) {
 	code := &CodeValue{
 		Body: &ast.BlockExpr{

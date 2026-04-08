@@ -21,6 +21,23 @@ type TryCatchExpr struct {
 func (n *TryCatchExpr) Span() source.Span { return n.SourceSpan }
 func (*TryCatchExpr) exprNode()           {}
 
+type MatchCase struct {
+	SourceSpan source.Span
+	Pattern    Expr
+	Branch     Expr
+}
+
+func (n *MatchCase) Span() source.Span { return n.SourceSpan }
+
+type MatchExpr struct {
+	SourceSpan source.Span
+	Subject    Expr
+	Cases      []*MatchCase
+}
+
+func (n *MatchExpr) Span() source.Span { return n.SourceSpan }
+func (*MatchExpr) exprNode()           {}
+
 type ForInExpr struct {
 	SourceSpan source.Span
 	Binding    *Identifier

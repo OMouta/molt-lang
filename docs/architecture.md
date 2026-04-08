@@ -36,6 +36,7 @@ Responsibilities:
 - build the typed AST in `internal/ast`
 - enforce precedence and associativity
 - handle newline-sensitive expression sequencing
+- parse keyword-led control flow such as `if`, `try`, loops, and `match`
 - parse quote and mutation literals
 - parse postfix chaining for calls, indexing, quoted-argument sugar, and mutation application
 
@@ -57,6 +58,7 @@ Evaluator responsibilities:
 - execute AST nodes
 - create closures and quoted code values
 - resolve and execute imported module files
+- evaluate first-match `match` expressions with branch-local capture scope
 - execute builtins
 - preserve captured environments for functions and quotes
 

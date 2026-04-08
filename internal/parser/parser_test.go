@@ -279,6 +279,37 @@ func TestParseConditionalWithoutElse(t *testing.T) {
 	}
 }
 
+func TestParseMatchExpression(t *testing.T) {
+	program := mustParse(t, "match.molt", ""+
+		"match value {\n"+
+		"  1 -> \"one\"\n"+
+		"  answer -> answer\n"+
+		"  _ -> nil\n"+
+		"}",
+	)
+
+	if len(program.Expressions) != 1 {
+		t.Fatalf("program expression count = %d, want 1", len(program.Expressions))
+	}
+
+	matchExpr := expectExpr[*ast.MatchExpr](t, program.Expressions[0])
+	subject := expectExpr[*ast.Identifier](t, matchExpr.Subject)
+	if subject.Name != "value" {
+		t.Fatalf("subject = %q, want %q", subject.Name, "value")
+	}
+
+	if len(matchExpr.Cases) != 3 {
+		t.Fatalf("case count = %d, want 3", len(matchExpr.Cases))
+	}
+
+	first := expectExpr[*ast.NumberLiteral](t, matchExpr.Cases[0].Pattern)
+	second := expectExpr[*ast.Identifier](t, matchExpr.Cases[1].Pattern)
+	third := expectExpr[*ast.Identifier](t, matchExpr.Cases[2].Pattern)
+	if first.Value != 1 || second.Name != "answer" || third.Name != "_" {
+		t.Fatalf("match patterns were not parsed correctly")
+	}
+}
+
 func TestParseRecordFieldAssignment(t *testing.T) {
 	program := mustParse(t, "field_assignment.molt", ""+
 		"profile.name = \"bolt\"\n"+
@@ -448,6 +479,9 @@ func TestParseRejectsMalformedPrograms(t *testing.T) {
 		{name: "for missing binding", input: "for 1 in xs -> x", message: "expected identifier after 'for'"},
 		{name: "for missing in", input: "for item xs -> x", message: "expected 'in' after loop binding"},
 		{name: "for missing arrow", input: "for item in xs x", message: "expected '->' after for iterable"},
+		{name: "match missing subject brace", input: "match x 1 -> 2", message: "expected '{' after match subject"},
+		{name: "match invalid pattern", input: "match x { [1] -> 2 }", message: "expected literal, identifier, or '_' in match pattern"},
+		{name: "match missing arrow", input: "match x { 1 2 }", message: "expected '->' in match case"},
 		{name: "same-line block sequence", input: "{ a b }", message: "expected line break or '}' after expression"},
 		{name: "export missing name", input: "export 1", message: "expected identifier after 'export'"},
 		{name: "import missing path", input: "import x", message: "expected string literal after 'import'"},

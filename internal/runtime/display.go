@@ -213,6 +213,42 @@ func formatMutationRule(rule *ast.MutationRule, indent int) string {
 	return formatExpr(rule.Pattern, indent) + " -> " + formatExpr(rule.Replacement, indent)
 }
 
+func formatMatchExpr(match *ast.MatchExpr, indent int) string {
+	if match == nil {
+		return "match nil {}"
+	}
+
+	if len(match.Cases) == 0 {
+		return "match " + formatExpr(match.Subject, indent) + " {}"
+	}
+
+	compactParts := make([]string, 0, len(match.Cases))
+	for _, matchCase := range match.Cases {
+		part := formatExpr(matchCase.Pattern, indent+1) + " -> " + formatExpr(matchCase.Branch, indent+1)
+		if strings.Contains(part, "\n") {
+			return formatMatchExprMultiline(match, indent)
+		}
+		compactParts = append(compactParts, part)
+	}
+
+	compact := "match " + formatExpr(match.Subject, indent) + " { " + strings.Join(compactParts, " ") + " }"
+	if len(compact) <= compactDisplayLimit && len(match.Cases) == 1 {
+		return compact
+	}
+
+	return formatMatchExprMultiline(match, indent)
+}
+
+func formatMatchExprMultiline(match *ast.MatchExpr, indent int) string {
+	lines := []string{"match " + formatExpr(match.Subject, indent) + " {"}
+	for _, matchCase := range match.Cases {
+		part := formatExpr(matchCase.Pattern, indent+1) + " -> " + formatExpr(matchCase.Branch, indent+1)
+		lines = append(lines, indentString(indent+1)+indentMultiline(part, indent+1))
+	}
+	lines = append(lines, indentString(indent)+"}")
+	return strings.Join(lines, "\n")
+}
+
 func formatDelimitedExpr(open, close string, body ast.Expr, indent int) string {
 	inner := formatQuotedBody(body, indent)
 	if !strings.Contains(inner, "\n") && len(open)+1+len(inner)+1+len(close) <= compactDisplayLimit {
@@ -368,6 +404,8 @@ func formatExpr(expr ast.Expr, indent int) string {
 		return "while " + formatExpr(node.Condition, indent) + " -> " + formatExpr(node.Body, indent)
 	case *ast.TryCatchExpr:
 		return "try " + formatExpr(node.Body, indent) + " catch " + node.CatchBinding.Name + " -> " + formatExpr(node.CatchBranch, indent)
+	case *ast.MatchExpr:
+		return formatMatchExpr(node, indent)
 	case *ast.ForInExpr:
 		return "for " + node.Binding.Name + " in " + formatExpr(node.Iterable, indent) + " -> " + formatExpr(node.Body, indent)
 	case *ast.CallExpr:

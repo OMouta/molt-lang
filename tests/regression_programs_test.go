@@ -34,6 +34,12 @@ func TestRegressionPrograms(t *testing.T) {
 			wantOutput: "record { name: \"molt\", stats: record { runs: 4 }, age: 2 }\nmolt\n4\n2\n[\"name\", \"stats\", \"age\"]\n[\"molt\", record { runs: 4 }, 2]\ntrue\n3\nrecord\n",
 		},
 		{
+			name:       "match example",
+			path:       "examples/basic/match.molt",
+			wantValue:  "nil",
+			wantOutput: "two\nmolt\nno\n",
+		},
+		{
 			name:       "error values example",
 			path:       "examples/errors/error_values.molt",
 			wantValue:  "nil",

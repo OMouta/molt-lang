@@ -100,6 +100,21 @@ func TestSpecExamples(t *testing.T) {
 		expectShownValue(t, value, `["boom", 7]`)
 	})
 
+	t.Run("match expression", func(t *testing.T) {
+		value, _ := mustExecuteProgram(t, "spec_match.molt", ""+
+			"kind = match 2 {\n"+
+			"  1 -> \"one\"\n"+
+			"  2 -> \"two\"\n"+
+			"  _ -> \"many\"\n"+
+			"}\n"+
+			"captured = match \"molt\" {\n"+
+			"  name -> name\n"+
+			"}\n"+
+			"[kind, captured]",
+		)
+		expectShownValue(t, value, `["two", "molt"]`)
+	})
+
 	t.Run("while loop", func(t *testing.T) {
 		value, _ := mustExecuteProgram(t, "spec_while_loop.molt", ""+
 			"x = 0\n"+

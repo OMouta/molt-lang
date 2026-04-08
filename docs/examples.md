@@ -54,6 +54,17 @@ true
 record
 ```
 
+[`examples/basic/match.molt`](../examples/basic/match.molt)
+: Uses literal, identifier-capture, and wildcard cases to branch on values with first-match semantics.
+
+Expected output:
+
+```txt
+two
+molt
+no
+```
+
 [`examples/errors/error_values.molt`](../examples/errors/error_values.molt)
 : Constructs first-class error values, inspects their fields, and shows their stable display form without aborting execution.
 
@@ -153,6 +164,7 @@ go run ./cmd/molt ./examples/others/colors.molt
 go run ./cmd/molt ./examples/basic/compare_worlds.molt
 go run ./cmd/molt ./examples/import_export/main.molt
 go run ./cmd/molt ./examples/basic/records.molt
+go run ./cmd/molt ./examples/basic/match.molt
 go run ./cmd/molt ./examples/errors/error_values.molt
 go run ./cmd/molt ./examples/errors/try_catch.molt
 go run ./cmd/molt ./examples/errors/throw_error.molt

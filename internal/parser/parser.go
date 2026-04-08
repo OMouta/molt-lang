@@ -90,6 +90,10 @@ func (p *Parser) parseExpression() (ast.Expr, error) {
 }
 
 func (p *Parser) parseConditional() (ast.Expr, error) {
+	if p.match(lexer.Match) {
+		return p.parseMatch(p.previous())
+	}
+
 	if p.match(lexer.For) {
 		start := p.previous()
 
@@ -533,6 +537,94 @@ func (p *Parser) parseExport(start lexer.Token) (ast.Expr, error) {
 		SourceSpan: p.mergeSpans(start.Span, nameToken.Span),
 		Name:       name,
 	}, nil
+}
+
+func (p *Parser) parseMatch(start lexer.Token) (ast.Expr, error) {
+	subject, err := p.parseAssignment()
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := p.consume(lexer.LeftBrace, "expected '{' after match subject"); err != nil {
+		return nil, err
+	}
+
+	cases := make([]*ast.MatchCase, 0, 2)
+	for !p.check(lexer.RightBrace) && !p.isAtEnd() {
+		matchCase, err := p.parseMatchCase()
+		if err != nil {
+			return nil, err
+		}
+
+		cases = append(cases, matchCase)
+		if p.check(lexer.RightBrace) {
+			break
+		}
+
+		if !p.startsOnLaterLine(matchCase.Span(), p.peek()) {
+			return nil, p.errorAt(p.peek(), "expected line break or '}' after match case")
+		}
+	}
+
+	end, err := p.consume(lexer.RightBrace, "expected '}' after match expression")
+	if err != nil {
+		return nil, err
+	}
+
+	return &ast.MatchExpr{
+		SourceSpan: p.mergeSpans(start.Span, end.Span),
+		Subject:    subject,
+		Cases:      cases,
+	}, nil
+}
+
+func (p *Parser) parseMatchCase() (*ast.MatchCase, error) {
+	pattern, err := p.parseMatchPattern()
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := p.consume(lexer.Arrow, "expected '->' in match case"); err != nil {
+		return nil, err
+	}
+
+	branch, err := p.parseExpression()
+	if err != nil {
+		return nil, err
+	}
+
+	return &ast.MatchCase{
+		SourceSpan: p.mergeSpans(pattern.Span(), branch.Span()),
+		Pattern:    pattern,
+		Branch:     branch,
+	}, nil
+}
+
+func (p *Parser) parseMatchPattern() (ast.Expr, error) {
+	switch {
+	case p.match(lexer.Number):
+		token := p.previous()
+		value, err := strconv.ParseFloat(token.Value, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid numeric token %q: %w", token.Value, err)
+		}
+
+		return &ast.NumberLiteral{SourceSpan: token.Span, Value: value}, nil
+	case p.match(lexer.String):
+		token := p.previous()
+		return &ast.StringLiteral{SourceSpan: token.Span, Value: token.Value}, nil
+	case p.match(lexer.True):
+		return &ast.BooleanLiteral{SourceSpan: p.previous().Span, Value: true}, nil
+	case p.match(lexer.False):
+		return &ast.BooleanLiteral{SourceSpan: p.previous().Span, Value: false}, nil
+	case p.match(lexer.Nil):
+		return &ast.NilLiteral{SourceSpan: p.previous().Span}, nil
+	case p.match(lexer.Identifier):
+		token := p.previous()
+		return &ast.Identifier{SourceSpan: token.Span, Name: token.Value}, nil
+	default:
+		return nil, p.errorAt(p.peek(), "expected literal, identifier, or '_' in match pattern")
+	}
 }
 
 func (p *Parser) parseImport(start lexer.Token) (ast.Expr, error) {

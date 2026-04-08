@@ -232,6 +232,38 @@ func TestLexRecognizesRecordSyntax(t *testing.T) {
 	checkTokenValue(t, tokens[6], "items")
 }
 
+func TestLexRecognizesMatchSyntax(t *testing.T) {
+	tokens, err := Lex("match.molt", "match value { 1 -> \"one\"\nname -> name\n_ -> nil }")
+	if err != nil {
+		t.Fatalf("Lex returned error: %v", err)
+	}
+
+	want := []Kind{
+		Match, Identifier, LeftBrace,
+		Number, Arrow, String,
+		Identifier, Arrow, Identifier,
+		Identifier, Arrow, Nil,
+		RightBrace, EOF,
+	}
+
+	if len(tokens) != len(want) {
+		t.Fatalf("token count = %d, want %d", len(tokens), len(want))
+	}
+
+	for i := range want {
+		if tokens[i].Kind != want[i] {
+			t.Fatalf("token[%d] kind = %s, want %s", i, tokens[i].Kind, want[i])
+		}
+	}
+
+	checkTokenValue(t, tokens[1], "value")
+	checkTokenValue(t, tokens[3], "1")
+	checkTokenValue(t, tokens[5], "one")
+	checkTokenValue(t, tokens[6], "name")
+	checkTokenValue(t, tokens[8], "name")
+	checkTokenValue(t, tokens[9], "_")
+}
+
 func TestLexRecognizesFieldAccessSyntax(t *testing.T) {
 	tokens, err := Lex("field_access.molt", `profile.name`)
 	if err != nil {

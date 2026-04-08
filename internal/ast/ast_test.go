@@ -25,6 +25,7 @@ var (
 	_ Expr = (*ConditionalExpr)(nil)
 	_ Expr = (*WhileExpr)(nil)
 	_ Expr = (*TryCatchExpr)(nil)
+	_ Expr = (*MatchExpr)(nil)
 	_ Expr = (*ForInExpr)(nil)
 	_ Expr = (*BreakExpr)(nil)
 	_ Expr = (*ContinueExpr)(nil)
@@ -36,6 +37,7 @@ var (
 	_ Expr = (*QuoteExpr)(nil)
 	_ Expr = (*MutationLiteralExpr)(nil)
 	_ Expr = (*ApplyMutationExpr)(nil)
+	_ Node = (*MatchCase)(nil)
 	_ Node = (*MutationRule)(nil)
 )
 
@@ -135,6 +137,16 @@ func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
 		CatchBinding: &Identifier{SourceSpan: span, Name: "err"},
 		CatchBranch:  value,
 	}
+	matchCase := &MatchCase{
+		SourceSpan: span,
+		Pattern:    &Identifier{SourceSpan: span, Name: "_"},
+		Branch:     value,
+	}
+	matchExpr := &MatchExpr{
+		SourceSpan: span,
+		Subject:    name,
+		Cases:      []*MatchCase{matchCase},
+	}
 	forExpr := &ForInExpr{
 		SourceSpan: span,
 		Binding:    name,
@@ -153,6 +165,8 @@ func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
 	assertSpan(t, conditional, span)
 	assertSpan(t, whileExpr, span)
 	assertSpan(t, tryExpr, span)
+	assertSpan(t, matchCase, span)
+	assertSpan(t, matchExpr, span)
 	assertSpan(t, forExpr, span)
 	assertSpan(t, breakExpr, span)
 	assertSpan(t, continueExpr, span)
@@ -191,6 +205,10 @@ func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
 
 	if tryExpr.Body != assign || tryExpr.CatchBinding.Name != "err" || tryExpr.CatchBranch != value {
 		t.Fatalf("try/catch shape was not preserved")
+	}
+
+	if matchExpr.Subject != name || len(matchExpr.Cases) != 1 || matchExpr.Cases[0] != matchCase {
+		t.Fatalf("match shape was not preserved")
 	}
 
 	if forExpr.Binding != name || forExpr.Iterable != other || forExpr.Body != assign {

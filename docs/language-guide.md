@@ -97,6 +97,11 @@ Conditionals:
 if cond -> expr
 if cond -> expr else -> expr
 try expr catch err -> expr
+match value {
+  1 -> "one"
+  name -> name
+  _ -> "other"
+}
 ```
 
 Loops:
@@ -157,6 +162,14 @@ Each `while` iteration runs in a fresh child scope rooted in the surrounding env
 `try ... catch ...` is also an expression. If the `try` body finishes normally, the whole expression returns that value and the `catch` branch is skipped. If the `try` body raises a failure, the `catch` branch runs in a fresh child scope with its binding set to an error value.
 
 Explicit `throw(error(...))` preserves the original error value, including optional `data`. Ordinary runtime diagnostics such as invalid builtin calls or import-time runtime failures are catchable too, but they are normalized to `error(message)` values. Loop control such as `break` and `continue` is not catchable.
+
+`match` evaluates its subject once and checks cases from top to bottom. The first matching case wins. Supported patterns for now are:
+
+- literal patterns such as `1`, `"ok"`, `true`, `false`, and `nil`
+- identifier patterns such as `name`, which always match and bind the subject value for that branch
+- `_` as a wildcard pattern that matches without binding
+
+Each matched branch runs in a fresh child scope rooted in the surrounding environment, so capture bindings stay local to that branch. Existing outer bindings can still be updated from inside the branch. There is no exhaustiveness checking yet; if no case matches, the whole `match` expression returns `nil`.
 
 ## Quote And Eval
 

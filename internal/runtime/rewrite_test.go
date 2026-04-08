@@ -332,6 +332,45 @@ func TestRewriteTraversesFieldAssignmentTargets(t *testing.T) {
 	}
 }
 
+func TestRewriteTraversesMatchExpressions(t *testing.T) {
+	span := helperSpan()
+	expr := &ast.MatchExpr{
+		SourceSpan: span,
+		Subject:    identifier("value"),
+		Cases: []*ast.MatchCase{
+			{
+				SourceSpan: span,
+				Pattern:    number(1),
+				Branch:     identifier("one"),
+			},
+			{
+				SourceSpan: span,
+				Pattern:    identifier("name"),
+				Branch:     identifier("name"),
+			},
+		},
+	}
+
+	rewritten, err := Rewrite(expr, &MutationValue{
+		Rules: []*ast.MutationRule{
+			rule(identifier("value"), identifier("item")),
+			rule(identifier("one"), identifier("single")),
+			rule(identifier("name"), identifier("label")),
+		},
+	})
+	if err != nil {
+		t.Fatalf("Rewrite returned error: %v", err)
+	}
+
+	matchExpr := expectExpr[*ast.MatchExpr](t, rewritten)
+	subject := expectExpr[*ast.Identifier](t, matchExpr.Subject)
+	secondPattern := expectExpr[*ast.Identifier](t, matchExpr.Cases[1].Pattern)
+	secondBranch := expectExpr[*ast.Identifier](t, matchExpr.Cases[1].Branch)
+	if subject.Name != "item" || secondPattern.Name != "label" || secondBranch.Name != "label" {
+		t.Fatalf("match rewrite mismatch")
+	}
+}
+
 func TestRewriteCanReplaceLoopControlExpressions(t *testing.T) {
 	rewritten, err := Rewrite(&ast.ContinueExpr{SourceSpan: helperSpan()}, &MutationValue{
 		Rules: []*ast.MutationRule{

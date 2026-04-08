@@ -161,6 +161,12 @@ func CloneExpr(expr ast.Expr) ast.Expr {
 			Condition:  CloneExpr(node.Condition),
 			Body:       CloneExpr(node.Body),
 		}
+	case *ast.MatchExpr:
+		return &ast.MatchExpr{
+			SourceSpan: node.SourceSpan,
+			Subject:    CloneExpr(node.Subject),
+			Cases:      cloneMatchCases(node.Cases),
+		}
 	case *ast.ForInExpr:
 		return &ast.ForInExpr{
 			SourceSpan: node.SourceSpan,
@@ -287,6 +293,9 @@ func EqualExpr(left, right ast.Expr) bool {
 	case *ast.WhileExpr:
 		r, ok := right.(*ast.WhileExpr)
 		return ok && EqualExpr(l.Condition, r.Condition) && EqualExpr(l.Body, r.Body)
+	case *ast.MatchExpr:
+		r, ok := right.(*ast.MatchExpr)
+		return ok && EqualExpr(l.Subject, r.Subject) && equalMatchCases(l.Cases, r.Cases)
 	case *ast.ForInExpr:
 		r, ok := right.(*ast.ForInExpr)
 		return ok &&
@@ -479,6 +488,18 @@ func rewriteWithRule(expr ast.Expr, rule *ast.MutationRule) (ast.Expr, bool) {
 			Condition:  condition,
 			Body:       body,
 		}, true
+	case *ast.MatchExpr:
+		subject, subjectChanged := rewriteWithRule(node.Subject, rule)
+		cases, casesChanged := rewriteMatchCases(node.Cases, rule)
+		if !subjectChanged && !casesChanged {
+			return expr, false
+		}
+
+		return &ast.MatchExpr{
+			SourceSpan: node.SourceSpan,
+			Subject:    subject,
+			Cases:      cases,
+		}, true
 	case *ast.ForInExpr:
 		binding, bindingChanged := rewriteIdentifier(node.Binding, rule)
 		iterable, iterableChanged := rewriteWithRule(node.Iterable, rule)
@@ -642,6 +663,19 @@ func validateMutationExpr(expr ast.Expr) error {
 			return err
 		}
 		return validateMutationExpr(node.Body)
+	case *ast.MatchExpr:
+		if err := validateMutationExpr(node.Subject); err != nil {
+			return err
+		}
+		for _, matchCase := range node.Cases {
+			if err := validateMutationExpr(matchCase.Pattern); err != nil {
+				return err
+			}
+			if err := validateMutationExpr(matchCase.Branch); err != nil {
+				return err
+			}
+		}
+		return nil
 	case *ast.ForInExpr:
 		if err := validateMutationExpr(node.Binding); err != nil {
 			return err
@@ -816,6 +850,36 @@ func rewriteRuleSlice(items []*ast.MutationRule, rule *ast.MutationRule) ([]*ast
 	return rewritten, changed
 }
 
+func cloneMatchCases(items []*ast.MatchCase) []*ast.MatchCase {
+	cloned := make([]*ast.MatchCase, 0, len(items))
+	for _, item := range items {
+		cloned = append(cloned, &ast.MatchCase{
+			SourceSpan: item.SourceSpan,
+			Pattern:    CloneExpr(item.Pattern),
+			Branch:     CloneExpr(item.Branch),
+		})
+	}
+
+	return cloned
+}
+
+func rewriteMatchCases(items []*ast.MatchCase, rule *ast.MutationRule) ([]*ast.MatchCase, bool) {
+	changed := false
+	rewritten := make([]*ast.MatchCase, 0, len(items))
+	for _, item := range items {
+		pattern, patternChanged := rewriteWithRule(item.Pattern, rule)
+		branch, branchChanged := rewriteWithRule(item.Branch, rule)
+		rewritten = append(rewritten, &ast.MatchCase{
+			SourceSpan: item.SourceSpan,
+			Pattern:    pattern,
+			Branch:     branch,
+		})
+		changed = changed || patternChanged || branchChanged
+	}
+
+	return rewritten, changed
+}
+
 func isOperatorLiteral(expr ast.Expr) bool {
 	_, ok := expr.(*ast.OperatorLiteral)
 	return ok
@@ -909,6 +973,20 @@ func equalRules(left, right []*ast.MutationRule) bool {
 
 	for i := range left {
 		if !EqualExpr(left[i].Pattern, right[i].Pattern) || !EqualExpr(left[i].Replacement, right[i].Replacement) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func equalMatchCases(left, right []*ast.MatchCase) bool {
+	if len(left) != len(right) {
+		return false
+	}
+
+	for i := range left {
+		if !EqualExpr(left[i].Pattern, right[i].Pattern) || !EqualExpr(left[i].Branch, right[i].Branch) {
 			return false
 		}
 	}

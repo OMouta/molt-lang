@@ -296,6 +296,43 @@ func TestEvaluateTryCatchConvertsRuntimeDiagnosticsToErrorValues(t *testing.T) {
 	}
 }
 
+func TestEvaluateMatchExpressions(t *testing.T) {
+	env := runtime.NewEnvironment(nil)
+	result := mustEval(t, env, "match.molt", ""+
+		"outer = 10\n"+
+		"a = match 2 {\n"+
+		"  1 -> \"one\"\n"+
+		"  2 -> \"two\"\n"+
+		"  _ -> \"other\"\n"+
+		"}\n"+
+		"b = match \"molt\" {\n"+
+		"  name -> [name, outer]\n"+
+		"}\n"+
+		"c = match false {\n"+
+		"  true -> 1\n"+
+		"}\n"+
+		"d = match 1 {\n"+
+		"  value -> {\n"+
+		"    outer = outer + value\n"+
+		"    value\n"+
+		"  }\n"+
+		"}\n"+
+		"[a, b, c, d, outer]",
+	)
+
+	if got := runtime.ShowValue(result); got != `["two", ["molt", 10], nil, 1, 11]` {
+		t.Fatalf("result = %q, want match semantics", got)
+	}
+
+	if _, ok := env.Get("name"); ok {
+		t.Fatalf("match capture leaked into outer scope")
+	}
+
+	if _, ok := env.Get("value"); ok {
+		t.Fatalf("match capture leaked into outer scope")
+	}
+}
+
 func TestEvaluateTryCatchDoesNotInterceptLoopControl(t *testing.T) {
 	_, err := evalStringWithEvaluator(nil, runtime.NewEnvironment(nil), "try_break.molt", "try break catch err -> nil")
 	runtimeErr := expectRuntimeError(t, err)

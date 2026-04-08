@@ -193,6 +193,8 @@ func (e *Evaluator) evalExpr(env *runtime.Environment, expr ast.Expr) (runtime.V
 		return e.evalWhile(env, node)
 	case *ast.TryCatchExpr:
 		return e.evalTryCatch(env, node)
+	case *ast.MatchExpr:
+		return e.evalMatch(env, node)
 	case *ast.ForInExpr:
 		return e.evalForIn(env, node)
 	case *ast.NamedFunctionExpr:
@@ -774,6 +776,48 @@ func (e *Evaluator) evalTryCatch(env *runtime.Environment, expr *ast.TryCatchExp
 	catchEnv := runtime.NewEnvironment(env)
 	catchEnv.Define(expr.CatchBinding.Name, caught)
 	return e.evalExpr(catchEnv, expr.CatchBranch)
+}
+
+func (e *Evaluator) evalMatch(env *runtime.Environment, expr *ast.MatchExpr) (runtime.Value, error) {
+	subject, err := e.evalExpr(env, expr.Subject)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, matchCase := range expr.Cases {
+		branchEnv, matched := e.matchCaseEnvironment(env, subject, matchCase)
+		if !matched {
+			continue
+		}
+
+		return e.evalExpr(branchEnv, matchCase.Branch)
+	}
+
+	return runtime.Nil, nil
+}
+
+func (e *Evaluator) matchCaseEnvironment(env *runtime.Environment, subject runtime.Value, matchCase *ast.MatchCase) (*runtime.Environment, bool) {
+	branchEnv := runtime.NewEnvironment(env)
+
+	switch pattern := matchCase.Pattern.(type) {
+	case *ast.NumberLiteral:
+		return branchEnv, valuesEqual(subject, &runtime.NumberValue{Value: pattern.Value})
+	case *ast.StringLiteral:
+		return branchEnv, valuesEqual(subject, &runtime.StringValue{Value: pattern.Value})
+	case *ast.BooleanLiteral:
+		return branchEnv, valuesEqual(subject, &runtime.BooleanValue{Value: pattern.Value})
+	case *ast.NilLiteral:
+		return branchEnv, valuesEqual(subject, runtime.Nil)
+	case *ast.Identifier:
+		if pattern.Name == "_" {
+			return branchEnv, true
+		}
+
+		branchEnv.Define(pattern.Name, subject)
+		return branchEnv, true
+	default:
+		return env, false
+	}
 }
 
 func (e *Evaluator) evalForIn(env *runtime.Environment, expr *ast.ForInExpr) (runtime.Value, error) {

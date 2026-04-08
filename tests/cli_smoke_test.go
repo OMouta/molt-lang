@@ -29,6 +29,11 @@ func TestCLISmokeExamples(t *testing.T) {
 			wantOutput: "record { name: \"molt\", stats: record { runs: 4 }, age: 2 }\nmolt\n4\n2\n[\"name\", \"stats\", \"age\"]\n[\"molt\", record { runs: 4 }, 2]\ntrue\n3\nrecord\n",
 		},
 		{
+			name:       "match",
+			path:       "examples/basic/match.molt",
+			wantOutput: "two\nmolt\nno\n",
+		},
+		{
 			name:       "error values",
 			path:       "examples/errors/error_values.molt",
 			wantOutput: "error\nmissing file\nnote.txt\n[\"message\", \"data\"]\nerror {\n  message: \"missing file\",\n  data: record { path: \"note.txt\" }\n}\n",

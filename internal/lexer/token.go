@@ -18,6 +18,7 @@ const (
 	Fn       Kind = "fn"
 	If       Kind = "if"
 	Else     Kind = "else"
+	Match    Kind = "match"
 	Try      Kind = "try"
 	Catch    Kind = "catch"
 	While    Kind = "while"
@@ -83,6 +84,7 @@ var keywords = map[string]Kind{
 	"fn":       Fn,
 	"if":       If,
 	"else":     Else,
+	"match":    Match,
 	"try":      Try,
 	"catch":    Catch,
 	"while":    While,
