@@ -1,0 +1,92 @@
+name: Nightly Build
+
+on:
+  schedule:
+    - cron: '0 0 * * *'     # midnight UTC every day
+  workflow_dispatch:        # allow manual trigger
+
+permissions:
+  contents: write           # needed to create releases and tags
+
+jobs:
+  # ── Check whether anything has changed since the last nightly ───────────────
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      has_commits: ${{ steps.check.outputs.has_commits }}
+      tag: ${{ steps.check.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # full history + tags
+
+      - name: Check for new commits since last nightly
+        id: check
+        run: |
+          TAG="nightly-$(date -u +%Y-%m-%d)"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+          LAST=$(git tag -l "nightly-*" | sort -r | head -1)
+          if [ -z "$LAST" ]; then
+            echo "No previous nightly tag found — first run."
+            echo "has_commits=true" >> "$GITHUB_OUTPUT"
+          else
+            COUNT=$(git log "$LAST"..HEAD --oneline | wc -l)
+            echo "Commits since $LAST: $COUNT"
+            if [ "$COUNT" -gt 0 ]; then
+              echo "has_commits=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "has_commits=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+  # ── Build and publish ────────────────────────────────────────────────────────
+  build:
+    needs: check
+    if: needs.check.outputs.has_commits == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build binaries
+        run: |
+          LDFLAGS="-s -w"
+
+          GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o molt.exe ./cmd/molt
+          zip molt-windows-x86_64.zip molt.exe
+
+          GOOS=darwin GOARCH=arm64 go build -ldflags="$LDFLAGS" -o molt ./cmd/molt
+          zip molt-macos-aarch64.zip molt
+
+          GOOS=linux GOARCH=amd64 go build -ldflags="$LDFLAGS" -o molt ./cmd/molt
+          zip molt-linux-x86_64.zip molt
+
+      - name: Collect recent commits for release notes
+        id: notes
+        run: |
+          LAST=$(git tag -l "nightly-*" | sort -r | head -1)
+          if [ -z "$LAST" ]; then
+            RANGE="HEAD"
+          else
+            RANGE="$LAST..HEAD"
+          fi
+          # Write commit list to a file (handles newlines safely)
+          git log $RANGE --oneline --no-decorate > notes.txt
+
+      - name: Create pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.check.outputs.tag }}
+          name: "Nightly ${{ needs.check.outputs.tag }}"
+          prerelease: true
+          body_path: notes.txt
+          files: |
+            molt-windows-x86_64.zip
+            molt-macos-aarch64.zip
+            molt-linux-x86_64.zip

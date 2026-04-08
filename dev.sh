@@ -16,8 +16,19 @@ case "$task" in
   format)
     gofmt -w .
     ;;
+  docs)
+    go run ./cmd/docgen
+    cd docs && npm run docs:dev
+    ;;
+  docs:build)
+    go run ./cmd/docgen
+    cd docs && npm run docs:build
+    ;;
+  docs:gen)
+    go run ./cmd/docgen
+    ;;
   *)
-    echo "usage: ./dev.sh {build|test|lint|format}" >&2
+    echo "usage: ./dev.sh {build|test|lint|format|docs|docs:build|docs:gen}" >&2
     exit 1
     ;;
 esac

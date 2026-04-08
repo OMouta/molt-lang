@@ -1,0 +1,67 @@
+/**
+ * Molt docs theme — built on VitePress CSS custom properties.
+ * Accent: #7cffb9
+ */
+
+/* ─── Brand ─────────────────────────────────────────────────────────────────── */
+
+:root {
+  --vp-c-brand-1: #00a86b;
+  --vp-c-brand-2: #008f5a;
+  --vp-c-brand-3: #007248;
+  --vp-c-brand-soft: rgba(0, 168, 107, 0.10);
+
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(120deg, #7cffb9 20%, #00a86b 80%);
+  --vp-home-hero-image-background-image: none;
+  --vp-home-hero-image-filter: none;
+}
+
+.dark {
+  --vp-c-brand-1: #7cffb9;
+  --vp-c-brand-2: #52e89b;
+  --vp-c-brand-3: #2fcf7e;
+  --vp-c-brand-soft: rgba(124, 255, 185, 0.08);
+
+  /* Backgrounds */
+  --vp-c-bg:      #0b0e0c;
+  --vp-c-bg-soft: #101410;
+  --vp-c-bg-mute: #161c16;
+  --vp-c-bg-elv:  #131813;
+  --vp-c-bg-alt:  #0d110d;
+
+  /* Borders */
+  --vp-c-border:  #1e2d22;
+  --vp-c-divider: #172017;
+  --vp-c-gutter:  #080b08;
+
+  /* Text */
+  --vp-c-text-1: rgba(208, 232, 218, 0.90);
+  --vp-c-text-2: rgba(160, 196, 176, 0.58);
+  --vp-c-text-3: rgba(110, 155, 130, 0.36);
+
+  /* Code block bg */
+  --vp-code-block-bg: #080b09;
+}
+
+/* ─── Sharp corners on buttons ───────────────────────────────────────────────── */
+
+.VPButton { border-radius: 3px !important; }
+
+/* ─── Nav title — monospaced ─────────────────────────────────────────────────── */
+
+.VPNavBarTitle .title {
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* ─── Builtins table — accent headers ───────────────────────────────────────── */
+
+.dark .vp-doc th {
+  color: var(--vp-c-brand-1);
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}

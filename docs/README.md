@@ -1,12 +1,69 @@
-# Documentation
+# molt docs
 
-This folder contains the published docs for `@molt` in its current pre-v1 state.
+This directory contains the source for the molt documentation website, built with [VitePress](https://vitepress.dev).
 
-- [Getting Started](getting-started.md)
-- [Language Guide](language-guide.md)
-- [Examples](examples.md)
-- [Editor Support](editor-support.md)
-- [Architecture](architecture.md)
-- [Release](release.md)
+## Docgen
 
-If you are new to the project, start with [Getting Started](getting-started.md). If you want to work on the implementation, jump to [Contributing](../CONTRIBUTING.md) and [Architecture](architecture.md).
+`cmd/docgen` is a Go program that generates the reference pages from source:
+
+| Output | Source |
+| --- | --- |
+| `reference/builtins.md` | `internal/builtins/docs.go` — `AllDocs []Doc` |
+| `reference/examples.md` | Every `.molt` file under `examples/` |
+| `public/logo.png` | `assets/molt-logo.png` |
+
+**To add or update a builtin's documentation**, edit `internal/builtins/docs.go` and re-run docgen. Do not edit `reference/builtins.md` directly.
+
+**To add an example**, drop a `.molt` file into the appropriate subdirectory under `examples/` and re-run docgen. A leading `# comment` in the file becomes its description on the examples page.
+
+Run docgen from the repository root:
+
+```sh
+go run ./cmd/docgen
+```
+
+Or via the dev helpers:
+
+```sh
+./dev.sh docs:gen
+./dev.ps1 docs:gen
+```
+
+## Local development
+
+Install dependencies:
+
+```sh
+cd docs
+npm install
+```
+
+Generate reference pages, then start the dev server:
+
+```sh
+# from repo root
+go run ./cmd/docgen
+
+# from docs/
+npm run docs:dev
+```
+
+Or use the combined helper:
+
+```sh
+./dev.sh docs        # gen + dev server
+./dev.ps1 docs       # gen + dev server
+```
+
+## Production build
+
+```sh
+./dev.sh docs:build
+./dev.ps1 docs:build
+```
+
+Output is written to `docs/.vitepress/dist/`.
+
+## Deployment
+
+The docs are deployed automatically to GitHub Pages on every push to `main` via `.github/workflows/docs.yml`. The workflow installs Go, runs docgen, installs Node, builds VitePress, and deploys the result.

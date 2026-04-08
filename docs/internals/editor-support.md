@@ -4,7 +4,7 @@
 
 A VS Code extension scaffold for `.molt` files lives in:
 
-[`editors/vscode-molt`](../editors/vscode-molt)
+[`editors/vscode-molt`](https://github.com/OMouta/molt-lang/tree/main/editors/vscode-molt)
 
 It includes:
 

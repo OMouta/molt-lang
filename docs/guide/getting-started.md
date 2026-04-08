@@ -1,5 +1,21 @@
 # Getting Started
 
+## Installation
+
+molt does not have versioned releases. Prebuilt binaries are published as **nightly builds** on every day that includes at least one commit. Download the latest build for your platform from the [releases page](https://github.com/OMouta/molt-lang/releases):
+
+| Platform | Archive |
+| --- | --- |
+| Windows x86-64 | `molt-windows-x86_64.zip` |
+| macOS Apple Silicon | `molt-macos-aarch64.zip` |
+| Linux x86-64 | `molt-linux-x86_64.zip` |
+
+Unzip the archive and place the `molt` binary somewhere on your `PATH`.
+
+::: tip Building from source
+If a nightly is not available yet or you want the absolute latest, build from source — see below.
+:::
+
 ## Requirements
 
 - Go `1.26`
@@ -95,6 +111,6 @@ Unix-like shells:
 
 ## First Programs To Try
 
-- [`examples/basic_mutation.molt`](../examples/basic_mutation.molt)
-- [`examples/compare_worlds.molt`](../examples/compare_worlds.molt)
-- [`examples/variant_gallery.molt`](../examples/variant_gallery.molt)
+- [`basic/basic_mutation`](/reference/examples#basic-mutation) — functions and mutations
+- [`basic/compare_worlds`](/reference/examples#compare-worlds) — eval and mutation together
+- [`basic/variant_gallery`](/reference/examples#variant-gallery) — match patterns
