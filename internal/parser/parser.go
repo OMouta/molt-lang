@@ -249,9 +249,10 @@ func (p *Parser) parseAssignment() (ast.Expr, error) {
 		return left, nil
 	}
 
-	identifier, ok := left.(*ast.Identifier)
-	if !ok {
-		return nil, p.errorAt(p.previous(), "invalid assignment target; expected identifier")
+	switch left.(type) {
+	case *ast.Identifier, *ast.FieldAccessExpr:
+	default:
+		return nil, p.errorAt(p.previous(), "invalid assignment target; expected identifier or record field")
 	}
 
 	value, err := p.parseConditional()
@@ -261,7 +262,7 @@ func (p *Parser) parseAssignment() (ast.Expr, error) {
 
 	return &ast.AssignmentExpr{
 		SourceSpan: p.mergeSpans(left.Span(), value.Span()),
-		Target:     identifier,
+		Target:     left,
 		Value:      value,
 	}, nil
 }

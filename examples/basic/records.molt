@@ -1,15 +1,13 @@
 profile = record { name: "molt", stats: record { runs: 3 } }
+profile.stats.runs = profile.stats.runs + 1
+profile.age = 2
 
 print(profile)
 print(profile.name)
 print(profile.stats.runs)
+print(profile.age)
 print(keys(profile))
 print(values(profile))
-print(contains(profile, "name"))
+print(contains(profile, "age"))
 print(len(profile))
 print(type(profile))
-
-if contains(profile, "age") ->
-        print(profile.age) 
-    else -> 
-        print("Age not found in profile.")

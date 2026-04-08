@@ -26,7 +26,7 @@ func TestCLISmokeExamples(t *testing.T) {
 		{
 			name:       "records",
 			path:       "examples/basic/records.molt",
-			wantOutput: "record { name: \"molt\", stats: record { runs: 3 } }\nmolt\n3\n[\"name\", \"stats\"]\n[\"molt\", record { runs: 3 }]\ntrue\n2\nrecord\nAge not found in profile.\n",
+			wantOutput: "record { name: \"molt\", stats: record { runs: 4 }, age: 2 }\nmolt\n4\n2\n[\"name\", \"stats\", \"age\"]\n[\"molt\", record { runs: 4 }, 2]\ntrue\n3\nrecord\n",
 		},
 		{
 			name:       "error values",

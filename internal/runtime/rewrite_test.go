@@ -253,8 +253,9 @@ func TestRewriteTraversesWhileExpressions(t *testing.T) {
 	}
 
 	assign := expectExpr[*ast.AssignmentExpr](t, whileExpr.Body)
-	if assign.Target.Name != "total" {
-		t.Fatalf("assignment target = %q, want %q", assign.Target.Name, "total")
+	target := expectExpr[*ast.Identifier](t, assign.Target)
+	if target.Name != "total" {
+		t.Fatalf("assignment target = %q, want %q", target.Name, "total")
 	}
 }
 
@@ -293,8 +294,41 @@ func TestRewriteTraversesForInExpressions(t *testing.T) {
 	}
 
 	assign := expectExpr[*ast.AssignmentExpr](t, forExpr.Body)
-	if assign.Target.Name != "sum" {
-		t.Fatalf("assignment target = %q, want %q", assign.Target.Name, "sum")
+	target := expectExpr[*ast.Identifier](t, assign.Target)
+	if target.Name != "sum" {
+		t.Fatalf("assignment target = %q, want %q", target.Name, "sum")
+	}
+}
+
+func TestRewriteTraversesFieldAssignmentTargets(t *testing.T) {
+	span := helperSpan()
+	expr := &ast.AssignmentExpr{
+		SourceSpan: span,
+		Target: &ast.FieldAccessExpr{
+			SourceSpan: span,
+			Target:     &ast.Identifier{SourceSpan: span, Name: "profile"},
+			Name:       &ast.Identifier{SourceSpan: span, Name: "name"},
+		},
+		Value: &ast.Identifier{SourceSpan: span, Name: "value"},
+	}
+
+	rewritten, err := Rewrite(expr, &MutationValue{
+		Rules: []*ast.MutationRule{
+			rule(identifier("profile"), identifier("user")),
+			rule(identifier("name"), identifier("title")),
+			rule(identifier("value"), identifier("text")),
+		},
+	})
+	if err != nil {
+		t.Fatalf("Rewrite returned error: %v", err)
+	}
+
+	assign := expectExpr[*ast.AssignmentExpr](t, rewritten)
+	target := expectExpr[*ast.FieldAccessExpr](t, assign.Target)
+	base := expectExpr[*ast.Identifier](t, target.Target)
+	value := expectExpr[*ast.Identifier](t, assign.Value)
+	if base.Name != "user" || target.Name.Name != "title" || value.Name != "text" {
+		t.Fatalf("field assignment rewrite mismatch")
 	}
 }
 

@@ -346,7 +346,7 @@ func formatExpr(expr ast.Expr, indent int) string {
 		lines = append(lines, indentString(indent)+"}")
 		return strings.Join(lines, "\n")
 	case *ast.AssignmentExpr:
-		return node.Target.Name + " = " + formatExpr(node.Value, indent)
+		return formatExpr(node.Target, indent) + " = " + formatExpr(node.Value, indent)
 	case *ast.IndexExpr:
 		return formatExpr(node.Target, indent) + "[" + formatExpr(node.Index, indent) + "]"
 	case *ast.FieldAccessExpr:

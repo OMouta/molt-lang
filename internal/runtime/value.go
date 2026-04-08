@@ -91,6 +91,28 @@ func (v *RecordValue) GetField(name string) (Value, bool) {
 	return v.Fields[index].Value, true
 }
 
+func (v *RecordValue) SetField(name string, value Value) bool {
+	if v == nil {
+		return false
+	}
+
+	if v.fieldIndex == nil {
+		v.fieldIndex = make(map[string]int, len(v.Fields))
+		for index, field := range v.Fields {
+			v.fieldIndex[field.Name] = index
+		}
+	}
+
+	if index, ok := v.fieldIndex[name]; ok {
+		v.Fields[index].Value = value
+		return true
+	}
+
+	v.Fields = append(v.Fields, RecordField{Name: name, Value: value})
+	v.fieldIndex[name] = len(v.Fields) - 1
+	return false
+}
+
 func (v *RecordValue) Len() int {
 	if v == nil {
 		return 0

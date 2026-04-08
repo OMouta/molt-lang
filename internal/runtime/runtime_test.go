@@ -155,6 +155,34 @@ func TestRecordValuePreservesFieldOrderAndLookup(t *testing.T) {
 	}
 }
 
+func TestRecordValueSetFieldUpdatesExistingFieldsAndAppendsNewOnes(t *testing.T) {
+	record := NewRecordValue([]RecordField{
+		{Name: "first", Value: &NumberValue{Value: 1}},
+		{Name: "second", Value: &NumberValue{Value: 2}},
+	})
+
+	updatedExisting := record.SetField("second", &NumberValue{Value: 20})
+	createdNew := record.SetField("third", &NumberValue{Value: 3})
+
+	if !updatedExisting {
+		t.Fatalf("updating existing field should report true")
+	}
+
+	if createdNew {
+		t.Fatalf("creating a new field should report false")
+	}
+
+	if got := record.Keys(); len(got) != 3 || got[0] != "first" || got[1] != "second" || got[2] != "third" {
+		t.Fatalf("record keys = %v, want [first second third]", got)
+	}
+
+	second := expectValue[*NumberValue](t, record.Fields[1].Value)
+	third := expectValue[*NumberValue](t, record.Fields[2].Value)
+	if second.Value != 20 || third.Value != 3 {
+		t.Fatalf("record values = [%v, %v], want [20, 3]", second.Value, third.Value)
+	}
+}
+
 func TestEnvironmentLookupFindsBindingsAcrossOuterScopes(t *testing.T) {
 	global := NewEnvironment(nil)
 	global.Define("x", &NumberValue{Value: 1})

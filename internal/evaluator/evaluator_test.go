@@ -123,6 +123,36 @@ func TestEvaluateRecordFieldAccess(t *testing.T) {
 	}
 }
 
+func TestEvaluateRecordFieldAssignmentMutatesInPlaceAndCreatesFields(t *testing.T) {
+	env := runtime.NewEnvironment(nil)
+	result := mustEval(t, env, "field_assignment.molt", ""+
+		"profile = record { name: \"molt\", stats: record { runs: 3 } }\n"+
+		"same = profile\n"+
+		"updated = profile.stats.runs = profile.stats.runs + 1\n"+
+		"created = profile.age = 2\n"+
+		"[updated, created, same == profile, profile]",
+	)
+
+	if got := runtime.ShowValue(result); got != "[\n  4,\n  2,\n  true,\n  record { name: \"molt\", stats: record { runs: 4 }, age: 2 }\n]" {
+		t.Fatalf("result = %q, want updated record assignment behavior", got)
+	}
+
+	profile := expectValue[*runtime.RecordValue](t, env.MustGet("profile"))
+	age, ok := profile.GetField("age")
+	if !ok {
+		t.Fatalf("expected assigned field to be created")
+	}
+
+	ageNumber := expectValue[*runtime.NumberValue](t, age)
+	if ageNumber.Value != 2 {
+		t.Fatalf("age = %v, want 2", ageNumber.Value)
+	}
+
+	if got := profile.Keys(); len(got) != 3 || got[0] != "name" || got[1] != "stats" || got[2] != "age" {
+		t.Fatalf("field order = %v, want [name stats age]", got)
+	}
+}
+
 func TestEvaluateErrorValuesExposeFieldsAndHelperBuiltins(t *testing.T) {
 	result := mustEval(t, runtime.NewEnvironment(nil), "error_values.molt", ""+
 		"err = error(\"missing file\", record { path: \"note.txt\" })\n"+
@@ -652,6 +682,7 @@ func TestEvaluateRuntimeErrors(t *testing.T) {
 		{name: "record missing field", input: `record { answer: 42 }["name"]`, message: `record has no field "name"`},
 		{name: "field access invalid target", input: `(1).name`, message: `cannot access field "name" on value of type "number"`},
 		{name: "field access missing field", input: `record { answer: 42 }.name`, message: `record has no field "name"`},
+		{name: "field assignment invalid target", input: `(1).name = 2`, message: `cannot assign field "name" on value of type "number"`},
 		{name: "undefined identifier", input: "missing", message: `undefined identifier "missing"`},
 		{name: "condition type", input: "if 1 -> 2 else -> 3", message: `if condition must be boolean, got "number"`},
 		{name: "while condition type", input: "while 1 -> 2", message: `while condition must be boolean, got "number"`},

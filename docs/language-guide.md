@@ -41,6 +41,7 @@ Bindings:
 
 ```txt
 x = expr
+profile.name = expr
 ```
 
 Functions:
@@ -79,12 +80,16 @@ Records:
 ```txt
 record { name: "molt", version: 1 }
 record {}
+profile.name = "bolt"
+profile.stats.runs = profile.stats.runs + 1
 profile.name
 profile.stats.runs
 profile["name"]
 err.message
 err["data"]
 ```
+
+Record field assignment mutates the existing record in place. Updating an existing field keeps its position, assigning a missing field appends it at the end, and the assignment expression returns the assigned value.
 
 Conditionals:
 
@@ -240,6 +245,9 @@ Supported matching forms:
 `push(list, value)`
 : Append to a list in place and return the same list.
 
+Record field assignment
+: `record.field = value` mutates the record in place and returns `value`.
+
 `split(text, separator)`
 : Split a string into a list of strings.
 
@@ -337,6 +345,7 @@ The runtime reports precise diagnostics for:
 - import failures
 - duplicate record field names
 - invalid record field access
+- invalid record field assignment
 - invalid while conditions
 - invalid for loop iterables
 - invalid `break` and `continue` outside loops

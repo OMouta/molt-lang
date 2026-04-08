@@ -67,6 +67,16 @@ func TestSpecExamples(t *testing.T) {
 		expectShownValue(t, value, "[\"molt\", true]")
 	})
 
+	t.Run("record field assignment", func(t *testing.T) {
+		value, _ := mustExecuteProgram(t, "spec_record_field_assignment.molt", ""+
+			"item = record { name: \"molt\", nested: record { ok: true } }\n"+
+			"item.nested.ok = false\n"+
+			"item.count = 2\n"+
+			"[item.nested.ok, item.count, keys(item)]",
+		)
+		expectShownValue(t, value, `[false, 2, ["name", "nested", "count"]]`)
+	})
+
 	t.Run("record helpers", func(t *testing.T) {
 		value, _ := mustExecuteProgram(t, "spec_record_helpers.molt", ""+
 			"item = record { name: \"molt\", nested: record { ok: true } }\n"+

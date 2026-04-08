@@ -151,6 +151,22 @@ func TestShowValueFormatsCodeContainingFieldAccess(t *testing.T) {
 	}
 }
 
+func TestShowValueFormatsCodeContainingFieldAssignment(t *testing.T) {
+	code := &CodeValue{
+		Body: &ast.AssignmentExpr{
+			Target: &ast.FieldAccessExpr{
+				Target: &ast.Identifier{Name: "profile"},
+				Name:   &ast.Identifier{Name: "name"},
+			},
+			Value: &ast.StringLiteral{Value: "bolt"},
+		},
+	}
+
+	if got := ShowValue(code); got != "@{ profile.name = \"bolt\" }" {
+		t.Fatalf("code = %q, want %q", got, "@{ profile.name = \"bolt\" }")
+	}
+}
+
 func TestShowValueFormatsCodeContainingWhileLoop(t *testing.T) {
 	code := &CodeValue{
 		Body: &ast.WhileExpr{

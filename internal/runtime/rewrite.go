@@ -115,7 +115,7 @@ func CloneExpr(expr ast.Expr) ast.Expr {
 	case *ast.AssignmentExpr:
 		return &ast.AssignmentExpr{
 			SourceSpan: node.SourceSpan,
-			Target:     cloneIdentifier(node.Target),
+			Target:     CloneExpr(node.Target),
 			Value:      CloneExpr(node.Value),
 		}
 	case *ast.IndexExpr:
@@ -414,7 +414,7 @@ func rewriteWithRule(expr ast.Expr, rule *ast.MutationRule) (ast.Expr, bool) {
 
 		return &ast.BlockExpr{SourceSpan: node.SourceSpan, Expressions: expressions}, true
 	case *ast.AssignmentExpr:
-		target, targetChanged := rewriteIdentifier(node.Target, rule)
+		target, targetChanged := rewriteWithRule(node.Target, rule)
 		value, valueChanged := rewriteWithRule(node.Value, rule)
 		if !targetChanged && !valueChanged {
 			return expr, false

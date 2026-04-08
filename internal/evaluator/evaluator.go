@@ -387,13 +387,36 @@ func (e *Evaluator) evalBlock(env *runtime.Environment, expr *ast.BlockExpr) (ru
 }
 
 func (e *Evaluator) evalAssignment(env *runtime.Environment, expr *ast.AssignmentExpr) (runtime.Value, error) {
-	value, err := e.evalExpr(env, expr.Value)
-	if err != nil {
-		return nil, err
-	}
+	switch target := expr.Target.(type) {
+	case *ast.Identifier:
+		value, err := e.evalExpr(env, expr.Value)
+		if err != nil {
+			return nil, err
+		}
 
-	env.Assign(expr.Target.Name, value)
-	return value, nil
+		env.Assign(target.Name, value)
+		return value, nil
+	case *ast.FieldAccessExpr:
+		recordValue, err := e.evalExpr(env, target.Target)
+		if err != nil {
+			return nil, err
+		}
+
+		record, ok := recordValue.(*runtime.RecordValue)
+		if !ok {
+			return nil, e.runtimeError(target, fmt.Sprintf("cannot assign field %q on value of type %q", target.Name.Name, recordValue.TypeName()))
+		}
+
+		value, err := e.evalExpr(env, expr.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		record.SetField(target.Name.Name, value)
+		return value, nil
+	default:
+		return nil, fmt.Errorf("unsupported assignment target type %T", expr.Target)
+	}
 }
 
 func (e *Evaluator) evalIndex(env *runtime.Environment, expr *ast.IndexExpr) (runtime.Value, error) {

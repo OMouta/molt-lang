@@ -38,18 +38,19 @@ Expected output:
 ```
 
 [`examples/basic/records.molt`](../examples/basic/records.molt)
-: Builds a record value in normal user code, reads nested fields, and demonstrates the record helper builtins while preserving field order.
+: Builds a record value in normal user code, mutates nested and newly-created fields in place, and demonstrates the record helper builtins while preserving field order.
 
 Expected output:
 
 ```txt
-record { name: "molt", stats: record { runs: 3 } }
+record { name: "molt", stats: record { runs: 4 }, age: 2 }
 molt
-3
-["name", "stats"]
-["molt", record { runs: 3 }]
-true
+4
 2
+["name", "stats", "age"]
+["molt", record { runs: 4 }, 2]
+true
+3
 record
 ```
 

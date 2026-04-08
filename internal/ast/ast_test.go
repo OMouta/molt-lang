@@ -107,11 +107,14 @@ func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
 	file := source.NewFile("ast.molt", "dummy")
 	span := file.MustSpan(0, 5)
 	name := &Identifier{SourceSpan: span, Name: "x"}
+	fieldName := &Identifier{SourceSpan: span, Name: "count"}
 	value := &NumberLiteral{SourceSpan: span, Value: 1}
 	other := &Identifier{SourceSpan: span, Name: "xs"}
+	fieldTarget := &FieldAccessExpr{SourceSpan: span, Target: other, Name: fieldName}
 
 	block := &BlockExpr{SourceSpan: span, Expressions: []Expr{name, value}}
 	assign := &AssignmentExpr{SourceSpan: span, Target: name, Value: value}
+	fieldAssign := &AssignmentExpr{SourceSpan: span, Target: fieldTarget, Value: value}
 	index := &IndexExpr{SourceSpan: span, Target: other, Index: value}
 	unary := &UnaryExpr{SourceSpan: span, Operator: UnaryNegate, Operand: value}
 	binary := &BinaryExpr{SourceSpan: span, Left: name, Operator: BinaryAdd, Right: value}
@@ -143,6 +146,7 @@ func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
 
 	assertSpan(t, block, span)
 	assertSpan(t, assign, span)
+	assertSpan(t, fieldAssign, span)
 	assertSpan(t, index, span)
 	assertSpan(t, unary, span)
 	assertSpan(t, binary, span)
@@ -159,6 +163,10 @@ func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
 
 	if assign.Target != name {
 		t.Fatalf("assignment target was not preserved")
+	}
+
+	if fieldAssign.Target != fieldTarget {
+		t.Fatalf("field assignment target was not preserved")
 	}
 
 	if index.Target != other || index.Index != value {

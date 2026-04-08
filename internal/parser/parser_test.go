@@ -83,8 +83,9 @@ func TestParseFunctionSyntax(t *testing.T) {
 	}
 
 	alias := expectExpr[*ast.AssignmentExpr](t, program.Expressions[1])
-	if alias.Target.Name != "mul" {
-		t.Fatalf("alias target = %q, want %q", alias.Target.Name, "mul")
+	aliasTarget := expectExpr[*ast.Identifier](t, alias.Target)
+	if aliasTarget.Name != "mul" {
+		t.Fatalf("alias target = %q, want %q", aliasTarget.Name, "mul")
 	}
 
 	if _, ok := alias.Value.(*ast.ApplyMutationExpr); !ok {
@@ -195,8 +196,9 @@ func TestParsePrecedenceAndAssociativity(t *testing.T) {
 	}
 
 	assign := expectExpr[*ast.AssignmentExpr](t, program.Expressions[0])
-	if assign.Target.Name != "x" {
-		t.Fatalf("assignment target = %q, want %q", assign.Target.Name, "x")
+	assignTarget := expectExpr[*ast.Identifier](t, assign.Target)
+	if assignTarget.Name != "x" {
+		t.Fatalf("assignment target = %q, want %q", assignTarget.Name, "x")
 	}
 
 	orExpr := expectExpr[*ast.BinaryExpr](t, assign.Value)
@@ -274,6 +276,32 @@ func TestParseConditionalWithoutElse(t *testing.T) {
 
 	if _, ok := conditional.ThenBranch.(*ast.AssignmentExpr); !ok {
 		t.Fatalf("then branch = %T, want assignment", conditional.ThenBranch)
+	}
+}
+
+func TestParseRecordFieldAssignment(t *testing.T) {
+	program := mustParse(t, "field_assignment.molt", ""+
+		"profile.name = \"bolt\"\n"+
+		"profile.stats.runs = profile.stats.runs + 1",
+	)
+
+	if len(program.Expressions) != 2 {
+		t.Fatalf("program expression count = %d, want 2", len(program.Expressions))
+	}
+
+	assign := expectExpr[*ast.AssignmentExpr](t, program.Expressions[0])
+	target := expectExpr[*ast.FieldAccessExpr](t, assign.Target)
+	base := expectExpr[*ast.Identifier](t, target.Target)
+	if base.Name != "profile" || target.Name.Name != "name" {
+		t.Fatalf("field assignment target mismatch")
+	}
+
+	nestedAssign := expectExpr[*ast.AssignmentExpr](t, program.Expressions[1])
+	outerField := expectExpr[*ast.FieldAccessExpr](t, nestedAssign.Target)
+	innerField := expectExpr[*ast.FieldAccessExpr](t, outerField.Target)
+	root := expectExpr[*ast.Identifier](t, innerField.Target)
+	if root.Name != "profile" || innerField.Name.Name != "stats" || outerField.Name.Name != "runs" {
+		t.Fatalf("nested field assignment target mismatch")
 	}
 }
 
@@ -408,7 +436,8 @@ func TestParseRejectsMalformedPrograms(t *testing.T) {
 		message string
 	}{
 		{name: "missing closing paren", input: "f(1, 2", message: "expected ')' after list"},
-		{name: "invalid assignment target", input: "(x) = 1", message: "invalid assignment target; expected identifier"},
+		{name: "invalid assignment target", input: "(x) = 1", message: "invalid assignment target; expected identifier or record field"},
+		{name: "index assignment target", input: "xs[0] = 1", message: "invalid assignment target; expected identifier or record field"},
 		{name: "chained relational", input: "a < b < c", message: "chained relational operators are not allowed"},
 		{name: "chained equality", input: "a == b != c", message: "chained equality operators are not allowed"},
 		{name: "else missing arrow", input: "if x -> y else z", message: "expected '->' after else"},
