@@ -330,7 +330,11 @@ func formatExpr(expr ast.Expr, indent int) string {
 	case *ast.BinaryExpr:
 		return "(" + formatExpr(node.Left, indent) + " " + string(node.Operator) + " " + formatExpr(node.Right, indent) + ")"
 	case *ast.ConditionalExpr:
-		return "if " + formatExpr(node.Condition, indent) + " -> " + formatExpr(node.ThenBranch, indent) + " else -> " + formatExpr(node.ElseBranch, indent)
+		text := "if " + formatExpr(node.Condition, indent) + " -> " + formatExpr(node.ThenBranch, indent)
+		if node.ElseBranch != nil {
+			text += " else -> " + formatExpr(node.ElseBranch, indent)
+		}
+		return text
 	case *ast.WhileExpr:
 		return "while " + formatExpr(node.Condition, indent) + " -> " + formatExpr(node.Body, indent)
 	case *ast.ForInExpr:

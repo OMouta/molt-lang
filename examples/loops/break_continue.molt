@@ -1,7 +1,7 @@
 xs = []
 for item in [1, 2, 3, 4] -> {
-  if item == 2 -> continue else -> nil
-  if item == 4 -> break else -> nil
+  if item == 2 -> continue
+  if item == 4 -> break
   push(xs, item)
 }
 

@@ -113,6 +113,16 @@ func TestSpecExamples(t *testing.T) {
 		expectShownValue(t, value, "1")
 	})
 
+	t.Run("conditional without else", func(t *testing.T) {
+		value, _ := mustExecuteProgram(t, "spec_conditional_without_else.molt", ""+
+			"seen = []\n"+
+			"if true -> push(seen, 1)\n"+
+			"if false -> push(seen, 2)\n"+
+			"seen",
+		)
+		expectShownValue(t, value, `[1]`)
+	})
+
 	t.Run("quote example", func(t *testing.T) {
 		value, _ := mustExecuteProgram(t, "spec_quote_example.molt", ""+
 			"x = 10\n"+

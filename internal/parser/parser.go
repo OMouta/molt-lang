@@ -171,24 +171,28 @@ func (p *Parser) parseConditional() (ast.Expr, error) {
 		return nil, err
 	}
 
-	if _, err := p.consume(lexer.Else, "expected 'else' after then branch"); err != nil {
-		return nil, err
-	}
+	if p.match(lexer.Else) {
+		if _, err := p.consume(lexer.Arrow, "expected '->' after else"); err != nil {
+			return nil, err
+		}
 
-	if _, err := p.consume(lexer.Arrow, "expected '->' after else"); err != nil {
-		return nil, err
-	}
+		elseBranch, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
 
-	elseBranch, err := p.parseExpression()
-	if err != nil {
-		return nil, err
+		return &ast.ConditionalExpr{
+			SourceSpan: p.mergeSpans(start.Span, elseBranch.Span()),
+			Condition:  condition,
+			ThenBranch: thenBranch,
+			ElseBranch: elseBranch,
+		}, nil
 	}
 
 	return &ast.ConditionalExpr{
-		SourceSpan: p.mergeSpans(start.Span, elseBranch.Span()),
+		SourceSpan: p.mergeSpans(start.Span, thenBranch.Span()),
 		Condition:  condition,
 		ThenBranch: thenBranch,
-		ElseBranch: elseBranch,
 	}, nil
 }
 

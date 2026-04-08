@@ -250,6 +250,19 @@ func TestEvaluateOperatorsConditionalsAndShortCircuiting(t *testing.T) {
 	}
 }
 
+func TestEvaluateConditionalWithoutElseReturnsNilWhenFalse(t *testing.T) {
+	result := mustEval(t, runtime.NewEnvironment(nil), "if_without_else.molt", ""+
+		"steps = []\n"+
+		"hit = if true -> push(steps, 1)\n"+
+		"miss = if false -> push(steps, 2)\n"+
+		"[hit, miss, steps]",
+	)
+
+	if got := runtime.ShowValue(result); got != `[[1], nil, [1]]` {
+		t.Fatalf("result = %q, want %q", got, `[[1], nil, [1]]`)
+	}
+}
+
 func TestEvaluateFunctionDefinitionsClosuresAndCalls(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
 	env.Define("doubleNative", &runtime.NativeFunctionValue{

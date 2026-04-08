@@ -73,6 +73,10 @@ func ApplyRule(expr ast.Expr, rule *ast.MutationRule) (ast.Expr, error) {
 }
 
 func CloneExpr(expr ast.Expr) ast.Expr {
+	if expr == nil {
+		return nil
+	}
+
 	switch node := expr.(type) {
 	case *ast.OperatorLiteral:
 		return &ast.OperatorLiteral{SourceSpan: node.SourceSpan, Symbol: node.Symbol}
@@ -140,11 +144,16 @@ func CloneExpr(expr ast.Expr) ast.Expr {
 			Right:      CloneExpr(node.Right),
 		}
 	case *ast.ConditionalExpr:
+		var elseBranch ast.Expr
+		if node.ElseBranch != nil {
+			elseBranch = CloneExpr(node.ElseBranch)
+		}
+
 		return &ast.ConditionalExpr{
 			SourceSpan: node.SourceSpan,
 			Condition:  CloneExpr(node.Condition),
 			ThenBranch: CloneExpr(node.ThenBranch),
-			ElseBranch: CloneExpr(node.ElseBranch),
+			ElseBranch: elseBranch,
 		}
 	case *ast.WhileExpr:
 		return &ast.WhileExpr{
@@ -207,6 +216,10 @@ func CloneRules(rules []*ast.MutationRule) []*ast.MutationRule {
 }
 
 func EqualExpr(left, right ast.Expr) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+
 	switch l := left.(type) {
 	case *ast.OperatorLiteral:
 		r, ok := right.(*ast.OperatorLiteral)
@@ -439,7 +452,11 @@ func rewriteWithRule(expr ast.Expr, rule *ast.MutationRule) (ast.Expr, bool) {
 	case *ast.ConditionalExpr:
 		condition, conditionChanged := rewriteWithRule(node.Condition, rule)
 		thenBranch, thenChanged := rewriteWithRule(node.ThenBranch, rule)
-		elseBranch, elseChanged := rewriteWithRule(node.ElseBranch, rule)
+		var elseBranch ast.Expr
+		elseChanged := false
+		if node.ElseBranch != nil {
+			elseBranch, elseChanged = rewriteWithRule(node.ElseBranch, rule)
+		}
 		if !conditionChanged && !thenChanged && !elseChanged {
 			return expr, false
 		}
@@ -546,6 +563,10 @@ func rewriteWithRule(expr ast.Expr, rule *ast.MutationRule) (ast.Expr, bool) {
 }
 
 func validateMutationExpr(expr ast.Expr) error {
+	if expr == nil {
+		return nil
+	}
+
 	switch node := expr.(type) {
 	case *ast.OperatorLiteral,
 		*ast.NumberLiteral,

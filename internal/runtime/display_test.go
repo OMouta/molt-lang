@@ -202,3 +202,16 @@ func TestShowValueFormatsCodeContainingLoopControl(t *testing.T) {
 		t.Fatalf("code = %q, want %q", got, want)
 	}
 }
+
+func TestShowValueFormatsConditionalWithoutElse(t *testing.T) {
+	code := &CodeValue{
+		Body: &ast.ConditionalExpr{
+			Condition:  &ast.Identifier{Name: "ready"},
+			ThenBranch: &ast.Identifier{Name: "go"},
+		},
+	}
+
+	if got := ShowValue(code); got != "@{ if ready -> go }" {
+		t.Fatalf("code = %q, want %q", got, "@{ if ready -> go }")
+	}
+}

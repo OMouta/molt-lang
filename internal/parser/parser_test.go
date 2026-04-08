@@ -261,6 +261,22 @@ func TestParsePrecedenceAndAssociativity(t *testing.T) {
 	}
 }
 
+func TestParseConditionalWithoutElse(t *testing.T) {
+	program := mustParse(t, "if_without_else.molt", "if cond -> step = step + 1")
+	if len(program.Expressions) != 1 {
+		t.Fatalf("program expression count = %d, want 1", len(program.Expressions))
+	}
+
+	conditional := expectExpr[*ast.ConditionalExpr](t, program.Expressions[0])
+	if conditional.ElseBranch != nil {
+		t.Fatalf("else branch = %T, want nil", conditional.ElseBranch)
+	}
+
+	if _, ok := conditional.ThenBranch.(*ast.AssignmentExpr); !ok {
+		t.Fatalf("then branch = %T, want assignment", conditional.ThenBranch)
+	}
+}
+
 func TestParseLoopControlInsideConditionalBranches(t *testing.T) {
 	program := mustParse(t, "loop_control.molt", "while true -> if false -> break else -> continue")
 	if len(program.Expressions) != 1 {
@@ -374,7 +390,7 @@ func TestParseRejectsMalformedPrograms(t *testing.T) {
 		{name: "invalid assignment target", input: "(x) = 1", message: "invalid assignment target; expected identifier"},
 		{name: "chained relational", input: "a < b < c", message: "chained relational operators are not allowed"},
 		{name: "chained equality", input: "a == b != c", message: "chained equality operators are not allowed"},
-		{name: "missing else", input: "if x -> y", message: "expected 'else' after then branch"},
+		{name: "else missing arrow", input: "if x -> y else z", message: "expected '->' after else"},
 		{name: "while missing arrow", input: "while x y", message: "expected '->' after while condition"},
 		{name: "for missing binding", input: "for 1 in xs -> x", message: "expected identifier after 'for'"},
 		{name: "for missing in", input: "for item xs -> x", message: "expected 'in' after loop binding"},

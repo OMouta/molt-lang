@@ -86,6 +86,7 @@ profile["name"]
 Conditionals:
 
 ```txt
+if cond -> expr
 if cond -> expr else -> expr
 ```
 

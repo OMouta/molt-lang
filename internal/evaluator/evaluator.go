@@ -644,6 +644,10 @@ func (e *Evaluator) evalConditional(env *runtime.Environment, expr *ast.Conditio
 		return e.evalExpr(env, expr.ThenBranch)
 	}
 
+	if expr.ElseBranch == nil {
+		return runtime.Nil, nil
+	}
+
 	return e.evalExpr(env, expr.ElseBranch)
 }
 
