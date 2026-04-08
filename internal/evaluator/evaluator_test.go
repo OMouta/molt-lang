@@ -81,12 +81,23 @@ func TestEvaluateBlocksAndAssignmentSemantics(t *testing.T) {
 func TestEvaluateIndexing(t *testing.T) {
 	result := mustEval(t, runtime.NewEnvironment(nil), "index.molt", ""+
 		"xs = [10, 20, 30]\n"+
-		"xs[1]",
+		"colors = record { space: \"\\n\" }\n"+
+		"[xs[1], colors[\"space\"]]",
 	)
 
-	number := expectValue[*runtime.NumberValue](t, result)
+	values := expectValue[*runtime.ListValue](t, result)
+	if len(values.Elements) != 2 {
+		t.Fatalf("result length = %d, want 2", len(values.Elements))
+	}
+
+	number := expectValue[*runtime.NumberValue](t, values.Elements[0])
 	if number.Value != 20 {
-		t.Fatalf("result = %v, want 20", number.Value)
+		t.Fatalf("first value = %v, want 20", number.Value)
+	}
+
+	separator := expectValue[*runtime.StringValue](t, values.Elements[1])
+	if separator.Value != "\n" {
+		t.Fatalf("second value = %q, want %q", separator.Value, "\\n")
 	}
 }
 
@@ -309,6 +320,8 @@ func TestEvaluateRuntimeErrors(t *testing.T) {
 		{name: "index out of bounds", input: "xs = [1]\nxs[1]", message: "list index 1 out of bounds"},
 		{name: "invalid index type", input: "xs = [1]\nxs[true]", message: `list index must be a number, got "boolean"`},
 		{name: "fractional index", input: "xs = [1]\nxs[1.5]", message: "list index must be a non-negative integer, got 1.5"},
+		{name: "record invalid index type", input: "r = record { x: 1 }\nr[1]", message: `record index must be a string, got "number"`},
+		{name: "record missing field", input: `record { answer: 42 }["name"]`, message: `record has no field "name"`},
 		{name: "field access invalid target", input: `(1).name`, message: `cannot access field "name" on value of type "number"`},
 		{name: "field access missing field", input: `record { answer: 42 }.name`, message: `record has no field "name"`},
 		{name: "undefined identifier", input: "missing", message: `undefined identifier "missing"`},

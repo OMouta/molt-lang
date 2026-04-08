@@ -80,6 +80,7 @@ record { name: "molt", version: 1 }
 record {}
 profile.name
 profile.stats.runs
+profile["name"]
 ```
 
 Conditionals:

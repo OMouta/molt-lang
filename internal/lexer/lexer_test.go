@@ -237,6 +237,23 @@ func TestLexRejectsMalformedStrings(t *testing.T) {
 	}
 }
 
+func TestLexDecodesEscapeSequencesIncludingEscapeByte(t *testing.T) {
+	tokens, err := Lex("escapes.molt", `"a\eb\n"`)
+	if err != nil {
+		t.Fatalf("Lex returned error: %v", err)
+	}
+
+	if len(tokens) != 2 {
+		t.Fatalf("token count = %d, want 2", len(tokens))
+	}
+
+	if tokens[0].Kind != String {
+		t.Fatalf("token[0] kind = %s, want %s", tokens[0].Kind, String)
+	}
+
+	checkTokenValue(t, tokens[0], "a\x1bb\n")
+}
+
 func TestLexRejectsUnexpectedCharacters(t *testing.T) {
 	tests := []struct {
 		input   string

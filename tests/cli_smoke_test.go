@@ -26,7 +26,7 @@ func TestCLISmokeExamples(t *testing.T) {
 		{
 			name:       "records",
 			path:       "examples/records.molt",
-			wantOutput: "record { name: \"molt\", stats: record { runs: 3 } }\nmolt\n3\n[\"name\", \"stats\"]\n[\"molt\", record { runs: 3 }]\ntrue\n2\nrecord\n",
+			wantOutput: "record { name: \"molt\", stats: record { runs: 3 } }\nmolt\n3\n[\"name\", \"stats\"]\n[\"molt\", record { runs: 3 }]\ntrue\n2\nrecord\nAge not found in profile.\n",
 		},
 		{
 			name:       "variant gallery",

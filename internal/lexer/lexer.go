@@ -231,6 +231,8 @@ func (l *Lexer) readEscape() (byte, error) {
 		return '\\', nil
 	case '"':
 		return '"', nil
+	case 'e':
+		return 0x1b, nil
 	case 'n':
 		return '\n', nil
 	case 'r':

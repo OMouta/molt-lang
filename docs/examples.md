@@ -14,6 +14,9 @@ Expected output:
 6
 ```
 
+[`examples/colors.molt`](../examples/colors.molt)
+: Prints the same message using several ANSI terminal colors through string escape sequences.
+
 [`examples/compare_worlds.molt`](../examples/compare_worlds.molt)
 : Evaluates the same quoted code before and after a mutation.
 
@@ -80,6 +83,7 @@ you got it!
 
 ```powershell
 go run ./cmd/molt ./examples/basic_mutation.molt
+go run ./cmd/molt ./examples/colors.molt
 go run ./cmd/molt ./examples/compare_worlds.molt
 go run ./cmd/molt ./examples/import_export/main.molt
 go run ./cmd/molt ./examples/records.molt

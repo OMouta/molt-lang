@@ -348,31 +348,44 @@ func (e *Evaluator) evalIndex(env *runtime.Environment, expr *ast.IndexExpr) (ru
 		return nil, err
 	}
 
-	list, ok := target.(*runtime.ListValue)
-	if !ok {
-		return nil, e.runtimeError(expr, fmt.Sprintf("cannot index value of type %q", target.TypeName()))
-	}
-
 	indexValue, err := e.evalExpr(env, expr.Index)
 	if err != nil {
 		return nil, err
 	}
 
-	number, ok := indexValue.(*runtime.NumberValue)
-	if !ok {
-		return nil, e.runtimeError(expr.Index, fmt.Sprintf("list index must be a number, got %q", indexValue.TypeName()))
+	if list, ok := target.(*runtime.ListValue); ok {
+		number, ok := indexValue.(*runtime.NumberValue)
+		if !ok {
+			return nil, e.runtimeError(expr.Index, fmt.Sprintf("list index must be a number, got %q", indexValue.TypeName()))
+		}
+
+		if number.Value < 0 || math.Trunc(number.Value) != number.Value {
+			return nil, e.runtimeError(expr.Index, fmt.Sprintf("list index must be a non-negative integer, got %v", number.Value))
+		}
+
+		index := int(number.Value)
+		if index >= len(list.Elements) {
+			return nil, e.runtimeError(expr, fmt.Sprintf("list index %d out of bounds", index))
+		}
+
+		return list.Elements[index], nil
 	}
 
-	if number.Value < 0 || math.Trunc(number.Value) != number.Value {
-		return nil, e.runtimeError(expr.Index, fmt.Sprintf("list index must be a non-negative integer, got %v", number.Value))
+	if record, ok := target.(*runtime.RecordValue); ok {
+		name, ok := indexValue.(*runtime.StringValue)
+		if !ok {
+			return nil, e.runtimeError(expr.Index, fmt.Sprintf("record index must be a string, got %q", indexValue.TypeName()))
+		}
+
+		value, ok := record.GetField(name.Value)
+		if !ok {
+			return nil, e.runtimeError(expr.Index, fmt.Sprintf("record has no field %q", name.Value))
+		}
+
+		return value, nil
 	}
 
-	index := int(number.Value)
-	if index >= len(list.Elements) {
-		return nil, e.runtimeError(expr, fmt.Sprintf("list index %d out of bounds", index))
-	}
-
-	return list.Elements[index], nil
+	return nil, e.runtimeError(expr, fmt.Sprintf("cannot index value of type %q", target.TypeName()))
 }
 
 func (e *Evaluator) evalFieldAccess(env *runtime.Environment, expr *ast.FieldAccessExpr) (runtime.Value, error) {

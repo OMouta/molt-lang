@@ -1,0 +1,23 @@
+colors = record {
+    reset: "\e[0m",
+    red: "\e[31m",
+    green: "\e[32m",
+    yellow: "\e[33m",
+    blue: "\e[34m",
+    magenta: "\e[35m",
+    cyan: "\e[36m"
+}
+
+fn pretty_print(text, color) = {
+    if contains(colors, color) ->
+        print(join([colors[color], text, colors.reset], ""))
+    else ->
+        print(text)
+}
+
+pretty_print("hi in red", "red")
+pretty_print("hi in green", "green")
+pretty_print("hi in yellow", "yellow")
+pretty_print("hi in blue", "blue")
+pretty_print("hi in magenta", "magenta")
+pretty_print("hi in cyan", "cyan")
