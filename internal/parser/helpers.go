@@ -140,6 +140,10 @@ func (p *Parser) errorAt(token lexer.Token, message string) error {
 	return diagnostic.NewParseError(message, token.Span)
 }
 
+func (p *Parser) errorAtSpan(span source.Span, message string) error {
+	return diagnostic.NewParseError(message, span)
+}
+
 func isMutationOperator(kind lexer.Kind) bool {
 	switch kind {
 	case lexer.Plus,

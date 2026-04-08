@@ -47,30 +47,6 @@ Convenience wrappers are also available:
 ./dev.ps1 format
 ```
 
-## Documentation
-
-- [Docs Index](docs/README.md)
-- [Getting Started](docs/getting-started.md)
-- [Language Guide](docs/language-guide.md)
-- [Examples](docs/examples.md)
-- [Editor Support](docs/editor-support.md)
-- [Contributing](docs/contributing.md)
-- [Architecture](docs/architecture.md)
-
-## Project Layout
-
-- `cmd/molt`: CLI entrypoint
-- `internal/ast`: AST types
-- `internal/diagnostic`: shared diagnostics and rendering
-- `internal/evaluator`: evaluation and builtin execution
-- `internal/lexer`: lexical analysis
-- `internal/parser`: parsing
-- `internal/runtime`: runtime values, display, environments, and rewriting
-- `internal/source`: source files and span tracking
-- `examples`: runnable example programs
-- `tests`: cross-package integration and end-to-end tests
-- `docs`: published user and contributor documentation
-
 ## Example
 
 ```txt
@@ -83,7 +59,7 @@ print(mul(2, 3))
 
 ## Contributing
 
-Contributions are welcome! Please see the [contributing guide](docs/contributing.md) for details on how to get involved.
+Contributions are welcome! Please see the [contributing guide](CONTRIBUTING.md) for details on how to get involved.
 
 ## License
 

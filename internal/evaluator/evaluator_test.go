@@ -78,6 +78,38 @@ func TestEvaluateBlocksAndAssignmentSemantics(t *testing.T) {
 	}
 }
 
+func TestEvaluateDestructuringAssignmentsSupportListsRecordsAndNestedPatterns(t *testing.T) {
+	env := runtime.NewEnvironment(nil)
+	result := mustEval(t, env, "destructuring_assignment.molt", ""+
+		"left = 0\n"+
+		"count = 0\n"+
+		"pair = [1, [2, 3]]\n"+
+		"profile = record { name: \"molt\", stats: record { runs: 4 } }\n"+
+		"[left, [middle, right]] = pair\n"+
+		"record { name: who, stats: record { runs: count } } = profile\n"+
+		"[left, middle, right, who, count]",
+	)
+
+	if got := runtime.ShowValue(result); got != `[1, 2, 3, "molt", 4]` {
+		t.Fatalf("result = %q, want %q", got, `[1, 2, 3, "molt", 4]`)
+	}
+
+	left := expectValue[*runtime.NumberValue](t, env.MustGet("left"))
+	if left.Value != 1 {
+		t.Fatalf("left = %v, want 1", left.Value)
+	}
+
+	count := expectValue[*runtime.NumberValue](t, env.MustGet("count"))
+	if count.Value != 4 {
+		t.Fatalf("count = %v, want 4", count.Value)
+	}
+
+	who := expectValue[*runtime.StringValue](t, env.MustGet("who"))
+	if who.Value != "molt" {
+		t.Fatalf("who = %q, want %q", who.Value, "molt")
+	}
+}
+
 func TestEvaluateIndexing(t *testing.T) {
 	result := mustEval(t, runtime.NewEnvironment(nil), "index.molt", ""+
 		"xs = [10, 20, 30]\n"+
@@ -418,6 +450,34 @@ func TestEvaluateForInLoopsReturnNilAndUseIterationLocalScope(t *testing.T) {
 	}
 }
 
+func TestEvaluateForInLoopsSupportDestructuringBindings(t *testing.T) {
+	env := runtime.NewEnvironment(nil)
+	result := mustEval(t, env, "for_in_destructuring.molt", ""+
+		"total = 0\n"+
+		"pairs = [[1, 2], [3, 4]]\n"+
+		"for [left, right] in pairs -> total = total + left + right\n"+
+		"names = []\n"+
+		"people = [record { name: \"molt\", age: 2 }, record { name: \"bolt\", age: 3 }]\n"+
+		"for record { name: name, age: age } in people -> {\n"+
+		"  total = total + age\n"+
+		"  push(names, name)\n"+
+		"}\n"+
+		"[total, names]",
+	)
+
+	if got := runtime.ShowValue(result); got != `[15, ["molt", "bolt"]]` {
+		t.Fatalf("result = %q, want %q", got, `[15, ["molt", "bolt"]]`)
+	}
+
+	if _, ok := env.Get("left"); ok {
+		t.Fatalf("destructured loop binding leaked into outer scope")
+	}
+
+	if _, ok := env.Get("name"); ok {
+		t.Fatalf("record destructuring loop binding leaked into outer scope")
+	}
+}
+
 func TestEvaluateForInLoopIteratesStringsByUnicodeCodePoint(t *testing.T) {
 	result := mustEval(t, runtime.NewEnvironment(nil), "for_in_string.molt", ""+
 		"chars = []\n"+
@@ -720,10 +780,15 @@ func TestEvaluateRuntimeErrors(t *testing.T) {
 		{name: "field access invalid target", input: `(1).name`, message: `cannot access field "name" on value of type "number"`},
 		{name: "field access missing field", input: `record { answer: 42 }.name`, message: `record has no field "name"`},
 		{name: "field assignment invalid target", input: `(1).name = 2`, message: `cannot assign field "name" on value of type "number"`},
+		{name: "list destructuring type mismatch", input: "[a, b] = 1", message: `list destructuring expects list, got "number"`},
+		{name: "list destructuring nested mismatch", input: "[a, [b, c]] = [1, [2]]", message: `list destructuring expected 2 elements, got 1 at [1]`},
+		{name: "record destructuring type mismatch", input: `record { name: who } = 1`, message: `record destructuring expects record, got "number"`},
+		{name: "record destructuring missing field", input: `record { name: who } = record { age: 2 }`, message: `record destructuring missing field "name"`},
 		{name: "undefined identifier", input: "missing", message: `undefined identifier "missing"`},
 		{name: "condition type", input: "if 1 -> 2 else -> 3", message: `if condition must be boolean, got "number"`},
 		{name: "while condition type", input: "while 1 -> 2", message: `while condition must be boolean, got "number"`},
 		{name: "for iterable type", input: "for x in 1 -> x", message: `for loop expects list or string, got "number"`},
+		{name: "for destructuring mismatch", input: "for [x, y] in [[1]] -> nil", message: `list destructuring expected 2 elements, got 1`},
 		{name: "top level break", input: "break", message: "break is only allowed inside loops"},
 		{name: "top level continue", input: "continue", message: "continue is only allowed inside loops"},
 		{name: "user arity", input: "f = fn(x) = x\nf()", message: "expected 1 arguments but got 0"},

@@ -337,7 +337,71 @@ func formatExpr(expr ast.Expr, indent int) string {
 		}
 		lines = append(lines, indentString(indent)+"]")
 		return strings.Join(lines, "\n")
+	case *ast.ListBindingPattern:
+		parts := make([]string, 0, len(node.Elements))
+		compact := "["
+		multiline := false
+		for i, element := range node.Elements {
+			part := formatExpr(element, indent+1)
+			parts = append(parts, part)
+			if strings.Contains(part, "\n") {
+				multiline = true
+			}
+			if i > 0 {
+				compact += ", "
+			}
+			compact += part
+		}
+		compact += "]"
+		if !multiline && len(compact) <= compactDisplayLimit {
+			return compact
+		}
+		lines := []string{"["}
+		for i := range parts {
+			part := formatExpr(node.Elements[i], 0)
+			line := indentString(indent+1) + indentMultiline(part, indent+1)
+			if i < len(parts)-1 {
+				line += ","
+			}
+			lines = append(lines, line)
+		}
+		lines = append(lines, indentString(indent)+"]")
+		return strings.Join(lines, "\n")
 	case *ast.RecordLiteral:
+		if len(node.Fields) == 0 {
+			return "record {}"
+		}
+
+		parts := make([]string, 0, len(node.Fields))
+		compact := "record { "
+		multiline := false
+		for i, field := range node.Fields {
+			part := field.Name.Name + ": " + formatExpr(field.Value, indent+1)
+			parts = append(parts, part)
+			if strings.Contains(part, "\n") {
+				multiline = true
+			}
+			if i > 0 {
+				compact += ", "
+			}
+			compact += part
+		}
+		compact += " }"
+		if !multiline && len(compact) <= compactDisplayLimit {
+			return compact
+		}
+		lines := []string{"record {"}
+		for i := range parts {
+			part := node.Fields[i].Name.Name + ": " + formatExpr(node.Fields[i].Value, 0)
+			line := indentString(indent+1) + indentMultiline(part, indent+1)
+			if i < len(parts)-1 {
+				line += ","
+			}
+			lines = append(lines, line)
+		}
+		lines = append(lines, indentString(indent)+"}")
+		return strings.Join(lines, "\n")
+	case *ast.RecordBindingPattern:
 		if len(node.Fields) == 0 {
 			return "record {}"
 		}
@@ -407,7 +471,7 @@ func formatExpr(expr ast.Expr, indent int) string {
 	case *ast.MatchExpr:
 		return formatMatchExpr(node, indent)
 	case *ast.ForInExpr:
-		return "for " + node.Binding.Name + " in " + formatExpr(node.Iterable, indent) + " -> " + formatExpr(node.Body, indent)
+		return "for " + formatExpr(node.Binding, indent) + " in " + formatExpr(node.Iterable, indent) + " -> " + formatExpr(node.Body, indent)
 	case *ast.CallExpr:
 		args := make([]string, 0, len(node.Arguments))
 		for _, arg := range node.Arguments {

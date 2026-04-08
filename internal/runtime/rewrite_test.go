@@ -284,8 +284,9 @@ func TestRewriteTraversesForInExpressions(t *testing.T) {
 	}
 
 	forExpr := expectExpr[*ast.ForInExpr](t, rewritten)
-	if forExpr.Binding.Name != "entry" {
-		t.Fatalf("binding = %q, want %q", forExpr.Binding.Name, "entry")
+	binding := expectExpr[*ast.Identifier](t, forExpr.Binding)
+	if binding.Name != "entry" {
+		t.Fatalf("binding = %q, want %q", binding.Name, "entry")
 	}
 
 	iterable := expectExpr[*ast.Identifier](t, forExpr.Iterable)

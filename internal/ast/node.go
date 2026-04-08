@@ -111,7 +111,7 @@ func (*BlockExpr) exprNode()           {}
 
 type AssignmentExpr struct {
 	SourceSpan source.Span
-	Target     Expr
+	Target     AssignmentTarget
 	Value      Expr
 }
 

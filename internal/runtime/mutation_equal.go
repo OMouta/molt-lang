@@ -44,9 +44,15 @@ func EqualExpr(left, right ast.Expr) bool {
 	case *ast.ListLiteral:
 		r, ok := right.(*ast.ListLiteral)
 		return ok && equalExprSlices(l.Elements, r.Elements)
+	case *ast.ListBindingPattern:
+		r, ok := right.(*ast.ListBindingPattern)
+		return ok && equalBindingPatterns(l.Elements, r.Elements)
 	case *ast.RecordLiteral:
 		r, ok := right.(*ast.RecordLiteral)
 		return ok && equalRecordFields(l.Fields, r.Fields)
+	case *ast.RecordBindingPattern:
+		r, ok := right.(*ast.RecordBindingPattern)
+		return ok && equalRecordBindingFields(l.Fields, r.Fields)
 	case *ast.BlockExpr:
 		r, ok := right.(*ast.BlockExpr)
 		return ok && equalExprSlices(l.Expressions, r.Expressions)
@@ -138,6 +144,34 @@ func equalIdentifiers(left, right []*ast.Identifier) bool {
 }
 
 func equalRecordFields(left, right []*ast.RecordField) bool {
+	if len(left) != len(right) {
+		return false
+	}
+
+	for i := range left {
+		if !EqualExpr(left[i].Name, right[i].Name) || !EqualExpr(left[i].Value, right[i].Value) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func equalBindingPatterns(left, right []ast.BindingPattern) bool {
+	if len(left) != len(right) {
+		return false
+	}
+
+	for i := range left {
+		if !EqualExpr(left[i], right[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func equalRecordBindingFields(left, right []*ast.RecordBindingField) bool {
 	if len(left) != len(right) {
 		return false
 	}

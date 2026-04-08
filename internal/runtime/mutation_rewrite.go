@@ -86,6 +86,13 @@ func rewriteWithRule(expr ast.Expr, rule *ast.MutationRule) (ast.Expr, bool) {
 		}
 
 		return &ast.ListLiteral{SourceSpan: node.SourceSpan, Elements: elements}, true
+	case *ast.ListBindingPattern:
+		elements, changed := rewriteBindingPatternSlice(node.Elements, rule)
+		if !changed {
+			return expr, false
+		}
+
+		return &ast.ListBindingPattern{SourceSpan: node.SourceSpan, Elements: elements}, true
 	case *ast.RecordLiteral:
 		fields, changed := rewriteRecordFieldSlice(node.Fields, rule)
 		if !changed {
@@ -93,6 +100,13 @@ func rewriteWithRule(expr ast.Expr, rule *ast.MutationRule) (ast.Expr, bool) {
 		}
 
 		return &ast.RecordLiteral{SourceSpan: node.SourceSpan, Fields: fields}, true
+	case *ast.RecordBindingPattern:
+		fields, changed := rewriteRecordBindingFieldSlice(node.Fields, rule)
+		if !changed {
+			return expr, false
+		}
+
+		return &ast.RecordBindingPattern{SourceSpan: node.SourceSpan, Fields: fields}, true
 	case *ast.BlockExpr:
 		expressions, changed := rewriteExprSlice(node.Expressions, rule)
 		if !changed {
@@ -109,7 +123,7 @@ func rewriteWithRule(expr ast.Expr, rule *ast.MutationRule) (ast.Expr, bool) {
 
 		return &ast.AssignmentExpr{
 			SourceSpan: node.SourceSpan,
-			Target:     target,
+			Target:     target.(ast.AssignmentTarget),
 			Value:      value,
 		}, true
 	case *ast.IndexExpr:
@@ -179,7 +193,7 @@ func rewriteWithRule(expr ast.Expr, rule *ast.MutationRule) (ast.Expr, bool) {
 			Cases:      cases,
 		}, true
 	case *ast.ForInExpr:
-		binding, bindingChanged := rewriteIdentifier(node.Binding, rule)
+		binding, bindingChanged := rewriteWithRule(node.Binding, rule)
 		iterable, iterableChanged := rewriteWithRule(node.Iterable, rule)
 		body, bodyChanged := rewriteWithRule(node.Body, rule)
 		if !bindingChanged && !iterableChanged && !bodyChanged {
@@ -188,7 +202,7 @@ func rewriteWithRule(expr ast.Expr, rule *ast.MutationRule) (ast.Expr, bool) {
 
 		return &ast.ForInExpr{
 			SourceSpan: node.SourceSpan,
-			Binding:    binding,
+			Binding:    binding.(ast.BindingPattern),
 			Iterable:   iterable,
 			Body:       body,
 		}, true
@@ -289,7 +303,24 @@ func validateMutationExpr(expr ast.Expr) error {
 			}
 		}
 		return nil
+	case *ast.ListBindingPattern:
+		for _, element := range node.Elements {
+			if err := validateMutationExpr(element); err != nil {
+				return err
+			}
+		}
+		return nil
 	case *ast.RecordLiteral:
+		for _, field := range node.Fields {
+			if err := validateMutationExpr(field.Name); err != nil {
+				return err
+			}
+			if err := validateMutationExpr(field.Value); err != nil {
+				return err
+			}
+		}
+		return nil
+	case *ast.RecordBindingPattern:
 		for _, field := range node.Fields {
 			if err := validateMutationExpr(field.Name); err != nil {
 				return err
@@ -504,6 +535,35 @@ func rewriteRecordFieldSlice(items []*ast.RecordField, rule *ast.MutationRule) (
 			SourceSpan: item.SourceSpan,
 			Name:       name,
 			Value:      value,
+		})
+		changed = changed || nameChanged || valueChanged
+	}
+
+	return rewritten, changed
+}
+
+func rewriteBindingPatternSlice(items []ast.BindingPattern, rule *ast.MutationRule) ([]ast.BindingPattern, bool) {
+	changed := false
+	rewritten := make([]ast.BindingPattern, 0, len(items))
+	for _, item := range items {
+		next, itemChanged := rewriteWithRule(item, rule)
+		rewritten = append(rewritten, next.(ast.BindingPattern))
+		changed = changed || itemChanged
+	}
+
+	return rewritten, changed
+}
+
+func rewriteRecordBindingFieldSlice(items []*ast.RecordBindingField, rule *ast.MutationRule) ([]*ast.RecordBindingField, bool) {
+	changed := false
+	rewritten := make([]*ast.RecordBindingField, 0, len(items))
+	for _, item := range items {
+		name, nameChanged := rewriteIdentifier(item.Name, rule)
+		value, valueChanged := rewriteWithRule(item.Value, rule)
+		rewritten = append(rewritten, &ast.RecordBindingField{
+			SourceSpan: item.SourceSpan,
+			Name:       name,
+			Value:      value.(ast.BindingPattern),
 		})
 		changed = changed || nameChanged || valueChanged
 	}

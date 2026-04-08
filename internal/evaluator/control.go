@@ -139,7 +139,9 @@ func (e *Evaluator) evalForIn(env *runtime.Environment, expr *ast.ForInExpr) (ru
 	case *runtime.ListValue:
 		for _, element := range value.Elements {
 			iterationEnv := runtime.NewEnvironment(env)
-			iterationEnv.Define(expr.Binding.Name, element)
+			if err := e.defineBindingPattern(iterationEnv, expr.Binding, element); err != nil {
+				return nil, err
+			}
 			if _, err := e.evalExpr(iterationEnv, expr.Body); err != nil {
 				signal, ok := asLoopControlSignal(err)
 				if !ok {
@@ -159,7 +161,9 @@ func (e *Evaluator) evalForIn(env *runtime.Environment, expr *ast.ForInExpr) (ru
 	case *runtime.StringValue:
 		for _, r := range []rune(value.Value) {
 			iterationEnv := runtime.NewEnvironment(env)
-			iterationEnv.Define(expr.Binding.Name, &runtime.StringValue{Value: string(r)})
+			if err := e.defineBindingPattern(iterationEnv, expr.Binding, &runtime.StringValue{Value: string(r)}); err != nil {
+				return nil, err
+			}
 			if _, err := e.evalExpr(iterationEnv, expr.Body); err != nil {
 				signal, ok := asLoopControlSignal(err)
 				if !ok {

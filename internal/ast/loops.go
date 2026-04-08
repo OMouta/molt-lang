@@ -40,7 +40,7 @@ func (*MatchExpr) exprNode()           {}
 
 type ForInExpr struct {
 	SourceSpan source.Span
-	Binding    *Identifier
+	Binding    BindingPattern
 	Iterable   Expr
 	Body       Expr
 }

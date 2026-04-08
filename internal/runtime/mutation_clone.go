@@ -42,14 +42,18 @@ func CloneExpr(expr ast.Expr) ast.Expr {
 		return &ast.GroupExpr{SourceSpan: node.SourceSpan, Inner: CloneExpr(node.Inner)}
 	case *ast.ListLiteral:
 		return &ast.ListLiteral{SourceSpan: node.SourceSpan, Elements: cloneExprs(node.Elements)}
+	case *ast.ListBindingPattern:
+		return &ast.ListBindingPattern{SourceSpan: node.SourceSpan, Elements: cloneBindingPatterns(node.Elements)}
 	case *ast.RecordLiteral:
 		return &ast.RecordLiteral{SourceSpan: node.SourceSpan, Fields: cloneRecordFields(node.Fields)}
+	case *ast.RecordBindingPattern:
+		return &ast.RecordBindingPattern{SourceSpan: node.SourceSpan, Fields: cloneRecordBindingFields(node.Fields)}
 	case *ast.BlockExpr:
 		return &ast.BlockExpr{SourceSpan: node.SourceSpan, Expressions: cloneExprs(node.Expressions)}
 	case *ast.AssignmentExpr:
 		return &ast.AssignmentExpr{
 			SourceSpan: node.SourceSpan,
-			Target:     CloneExpr(node.Target),
+			Target:     CloneExpr(node.Target).(ast.AssignmentTarget),
 			Value:      CloneExpr(node.Value),
 		}
 	case *ast.IndexExpr:
@@ -104,7 +108,7 @@ func CloneExpr(expr ast.Expr) ast.Expr {
 	case *ast.ForInExpr:
 		return &ast.ForInExpr{
 			SourceSpan: node.SourceSpan,
-			Binding:    cloneIdentifier(node.Binding),
+			Binding:    CloneExpr(node.Binding).(ast.BindingPattern),
 			Iterable:   CloneExpr(node.Iterable),
 			Body:       CloneExpr(node.Body),
 		}
@@ -201,6 +205,28 @@ func cloneRecordFields(items []*ast.RecordField) []*ast.RecordField {
 			SourceSpan: item.SourceSpan,
 			Name:       cloneIdentifier(item.Name),
 			Value:      CloneExpr(item.Value),
+		})
+	}
+
+	return cloned
+}
+
+func cloneBindingPatterns(items []ast.BindingPattern) []ast.BindingPattern {
+	cloned := make([]ast.BindingPattern, 0, len(items))
+	for _, item := range items {
+		cloned = append(cloned, CloneExpr(item).(ast.BindingPattern))
+	}
+
+	return cloned
+}
+
+func cloneRecordBindingFields(items []*ast.RecordBindingField) []*ast.RecordBindingField {
+	cloned := make([]*ast.RecordBindingField, 0, len(items))
+	for _, item := range items {
+		cloned = append(cloned, &ast.RecordBindingField{
+			SourceSpan: item.SourceSpan,
+			Name:       cloneIdentifier(item.Name),
+			Value:      CloneExpr(item.Value).(ast.BindingPattern),
 		})
 	}
 

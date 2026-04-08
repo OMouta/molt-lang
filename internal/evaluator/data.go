@@ -68,6 +68,28 @@ func (e *Evaluator) evalAssignment(env *runtime.Environment, expr *ast.Assignmen
 
 		env.Assign(target.Name, value)
 		return value, nil
+	case *ast.ListBindingPattern:
+		value, err := e.evalExpr(env, expr.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := e.assignBindingPattern(env, target, value); err != nil {
+			return nil, err
+		}
+
+		return value, nil
+	case *ast.RecordBindingPattern:
+		value, err := e.evalExpr(env, expr.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := e.assignBindingPattern(env, target, value); err != nil {
+			return nil, err
+		}
+
+		return value, nil
 	case *ast.FieldAccessExpr:
 		recordValue, err := e.evalExpr(env, target.Target)
 		if err != nil {

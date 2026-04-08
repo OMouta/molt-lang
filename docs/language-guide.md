@@ -41,6 +41,8 @@ Bindings:
 
 ```txt
 x = expr
+[left, right] = pair
+record { name: who, stats: record { runs: count } } = profile
 profile.name = expr
 ```
 
@@ -113,6 +115,7 @@ while cond -> {
   step2
 }
 for item in items -> expr
+for [left, right] in pairs -> expr
 for ch in "text" -> {
   step1
   step2
@@ -155,7 +158,9 @@ The language uses strict booleans. `if`, `and`, `or`, and `not` require real boo
 
 Each `while` iteration runs in a fresh child scope rooted in the surrounding environment. Assignments can still update outer bindings, but new iteration-local bindings do not leak after the iteration ends.
 
-`for` currently iterates over lists and strings. String iteration walks Unicode code points and yields one-character strings. A `for` expression also returns `nil`, and each iteration uses the same fresh child-scope model as `while`: outer bindings can be updated, but the loop binding and any new locals do not leak after the iteration ends.
+List destructuring binds by exact shape: the value must be a list with the same number of elements as the pattern. Record destructuring requires a record value with each named field present; extra record fields are ignored. Mismatches raise runtime diagnostics before any bindings from that pattern are written.
+
+`for` currently iterates over lists and strings. String iteration walks Unicode code points and yields one-character strings. A `for` expression also returns `nil`, and each iteration uses the same fresh child-scope model as `while`: outer bindings can be updated, but the loop binding and any new locals do not leak after the iteration ends. The loop binding can be either a plain identifier or the same list/record destructuring forms used by assignment.
 
 `break` exits the nearest enclosing loop immediately. `continue` skips the rest of the current iteration and resumes with the next one. Both forms work through surrounding block scopes, but execution raises a runtime diagnostic if either form is reached outside a loop body.
 
@@ -359,6 +364,7 @@ The runtime reports precise diagnostics for:
 - duplicate record field names
 - invalid record field access
 - invalid record field assignment
+- destructuring mismatches
 - invalid while conditions
 - invalid for loop iterables
 - invalid `break` and `continue` outside loops

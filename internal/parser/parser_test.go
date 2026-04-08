@@ -250,8 +250,9 @@ func TestParsePrecedenceAndAssociativity(t *testing.T) {
 	}
 
 	forExpr := expectExpr[*ast.ForInExpr](t, program.Expressions[3])
-	if forExpr.Binding.Name != "item" {
-		t.Fatalf("for binding = %q, want %q", forExpr.Binding.Name, "item")
+	binding := expectExpr[*ast.Identifier](t, forExpr.Binding)
+	if binding.Name != "item" {
+		t.Fatalf("for binding = %q, want %q", binding.Name, "item")
 	}
 
 	if _, ok := forExpr.Iterable.(*ast.Identifier); !ok {
@@ -333,6 +334,50 @@ func TestParseRecordFieldAssignment(t *testing.T) {
 	root := expectExpr[*ast.Identifier](t, innerField.Target)
 	if root.Name != "profile" || innerField.Name.Name != "stats" || outerField.Name.Name != "runs" {
 		t.Fatalf("nested field assignment target mismatch")
+	}
+}
+
+func TestParseDestructuringBindings(t *testing.T) {
+	program := mustParse(t, "destructuring.molt", ""+
+		"[left, [middle, right]] = pair\n"+
+		"record { name: who, stats: record { runs: count } } = profile\n"+
+		"for [first, second] in pairs -> total = total + first\n",
+	)
+
+	if len(program.Expressions) != 3 {
+		t.Fatalf("program expression count = %d, want 3", len(program.Expressions))
+	}
+
+	listAssign := expectExpr[*ast.AssignmentExpr](t, program.Expressions[0])
+	listTarget := expectExpr[*ast.ListBindingPattern](t, listAssign.Target)
+	if len(listTarget.Elements) != 2 {
+		t.Fatalf("list target element count = %d, want 2", len(listTarget.Elements))
+	}
+
+	nestedList := expectExpr[*ast.ListBindingPattern](t, listTarget.Elements[1])
+	if len(nestedList.Elements) != 2 {
+		t.Fatalf("nested list target element count = %d, want 2", len(nestedList.Elements))
+	}
+
+	recordAssign := expectExpr[*ast.AssignmentExpr](t, program.Expressions[1])
+	recordTarget := expectExpr[*ast.RecordBindingPattern](t, recordAssign.Target)
+	if len(recordTarget.Fields) != 2 {
+		t.Fatalf("record target field count = %d, want 2", len(recordTarget.Fields))
+	}
+
+	if recordTarget.Fields[0].Name.Name != "name" {
+		t.Fatalf("first record target field = %q, want %q", recordTarget.Fields[0].Name.Name, "name")
+	}
+
+	nestedRecord := expectExpr[*ast.RecordBindingPattern](t, recordTarget.Fields[1].Value)
+	if len(nestedRecord.Fields) != 1 || nestedRecord.Fields[0].Name.Name != "runs" {
+		t.Fatalf("nested record target fields were not parsed correctly")
+	}
+
+	forExpr := expectExpr[*ast.ForInExpr](t, program.Expressions[2])
+	forBinding := expectExpr[*ast.ListBindingPattern](t, forExpr.Binding)
+	if len(forBinding.Elements) != 2 {
+		t.Fatalf("for binding element count = %d, want 2", len(forBinding.Elements))
 	}
 }
 
@@ -467,8 +512,8 @@ func TestParseRejectsMalformedPrograms(t *testing.T) {
 		message string
 	}{
 		{name: "missing closing paren", input: "f(1, 2", message: "expected ')' after list"},
-		{name: "invalid assignment target", input: "(x) = 1", message: "invalid assignment target; expected identifier or record field"},
-		{name: "index assignment target", input: "xs[0] = 1", message: "invalid assignment target; expected identifier or record field"},
+		{name: "invalid assignment target", input: "(x) = 1", message: "invalid assignment target; expected identifier, list destructuring, record destructuring, or record field"},
+		{name: "index assignment target", input: "xs[0] = 1", message: "invalid assignment target; expected identifier, list destructuring, record destructuring, or record field"},
 		{name: "chained relational", input: "a < b < c", message: "chained relational operators are not allowed"},
 		{name: "chained equality", input: "a == b != c", message: "chained equality operators are not allowed"},
 		{name: "else missing arrow", input: "if x -> y else z", message: "expected '->' after else"},
@@ -476,7 +521,7 @@ func TestParseRejectsMalformedPrograms(t *testing.T) {
 		{name: "catch missing binding", input: "try x catch -> y", message: "expected identifier after 'catch'"},
 		{name: "catch missing arrow", input: "try x catch err y", message: "expected '->' after catch binding"},
 		{name: "while missing arrow", input: "while x y", message: "expected '->' after while condition"},
-		{name: "for missing binding", input: "for 1 in xs -> x", message: "expected identifier after 'for'"},
+		{name: "for missing binding", input: "for 1 in xs -> x", message: "expected identifier, list destructuring, or record destructuring after 'for'"},
 		{name: "for missing in", input: "for item xs -> x", message: "expected 'in' after loop binding"},
 		{name: "for missing arrow", input: "for item in xs x", message: "expected '->' after for iterable"},
 		{name: "match missing subject brace", input: "match x 1 -> 2", message: "expected '{' after match subject"},

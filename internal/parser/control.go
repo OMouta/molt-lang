@@ -16,9 +16,14 @@ func (p *Parser) parseConditional() (ast.Expr, error) {
 	if p.match(lexer.For) {
 		start := p.previous()
 
-		bindingToken, err := p.consume(lexer.Identifier, "expected identifier after 'for'")
+		bindingExpr, err := p.parseOr()
 		if err != nil {
 			return nil, err
+		}
+
+		binding, err := p.bindingPatternFromExpr(bindingExpr)
+		if err != nil {
+			return nil, p.errorAtSpan(bindingExpr.Span(), "expected identifier, list destructuring, or record destructuring after 'for'")
 		}
 
 		if _, err := p.consume(lexer.In, "expected 'in' after loop binding"); err != nil {
@@ -41,10 +46,7 @@ func (p *Parser) parseConditional() (ast.Expr, error) {
 
 		return &ast.ForInExpr{
 			SourceSpan: p.mergeSpans(start.Span, body.Span()),
-			Binding: &ast.Identifier{
-				SourceSpan: bindingToken.Span,
-				Name:       bindingToken.Value,
-			},
+			Binding:    binding,
 			Iterable: iterable,
 			Body:     body,
 		}, nil
@@ -172,10 +174,9 @@ func (p *Parser) parseAssignment() (ast.Expr, error) {
 		return left, nil
 	}
 
-	switch left.(type) {
-	case *ast.Identifier, *ast.FieldAccessExpr:
-	default:
-		return nil, p.errorAt(p.previous(), "invalid assignment target; expected identifier or record field")
+	target, err := p.assignmentTargetFromExpr(left)
+	if err != nil {
+		return nil, err
 	}
 
 	value, err := p.parseConditional()
@@ -185,7 +186,7 @@ func (p *Parser) parseAssignment() (ast.Expr, error) {
 
 	return &ast.AssignmentExpr{
 		SourceSpan: p.mergeSpans(left.Span(), value.Span()),
-		Target:     left,
+		Target:     target,
 		Value:      value,
 	}, nil
 }

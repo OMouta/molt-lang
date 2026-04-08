@@ -115,6 +115,20 @@ func TestSpecExamples(t *testing.T) {
 		expectShownValue(t, value, `["two", "molt"]`)
 	})
 
+	t.Run("destructuring bindings", func(t *testing.T) {
+		value, _ := mustExecuteProgram(t, "spec_destructuring.molt", ""+
+			"pair = [1, [2, 3]]\n"+
+			"[left, [middle, right]] = pair\n"+
+			"profile = record { name: \"molt\", stats: record { runs: 4 } }\n"+
+			"record { name: who, stats: record { runs: count } } = profile\n"+
+			"rows = [[10, 20], [30, 40]]\n"+
+			"total = 0\n"+
+			"for [a, b] in rows -> total = total + a + b\n"+
+			"[[left, middle, right], [who, count], total]",
+		)
+		expectShownValue(t, value, `[[1, 2, 3], ["molt", 4], 100]`)
+	})
+
 	t.Run("while loop", func(t *testing.T) {
 		value, _ := mustExecuteProgram(t, "spec_while_loop.molt", ""+
 			"x = 0\n"+

@@ -37,7 +37,17 @@ var (
 	_ Expr = (*QuoteExpr)(nil)
 	_ Expr = (*MutationLiteralExpr)(nil)
 	_ Expr = (*ApplyMutationExpr)(nil)
+	_ Expr = (*ListBindingPattern)(nil)
+	_ Expr = (*RecordBindingPattern)(nil)
+	_ BindingPattern = (*Identifier)(nil)
+	_ BindingPattern = (*ListBindingPattern)(nil)
+	_ BindingPattern = (*RecordBindingPattern)(nil)
+	_ AssignmentTarget = (*Identifier)(nil)
+	_ AssignmentTarget = (*ListBindingPattern)(nil)
+	_ AssignmentTarget = (*RecordBindingPattern)(nil)
+	_ AssignmentTarget = (*FieldAccessExpr)(nil)
 	_ Node = (*MatchCase)(nil)
+	_ Node = (*RecordBindingField)(nil)
 	_ Node = (*MutationRule)(nil)
 )
 
@@ -55,6 +65,9 @@ func TestLiteralIdentifierAndListNodesPreserveSpansAndPayloads(t *testing.T) {
 	recordField := &RecordField{SourceSpan: span, Name: ident, Value: number}
 	record := &RecordLiteral{SourceSpan: span, Fields: []*RecordField{recordField}}
 	fieldAccess := &FieldAccessExpr{SourceSpan: span, Target: ident, Name: &Identifier{SourceSpan: span, Name: "name"}}
+	listBinding := &ListBindingPattern{SourceSpan: span, Elements: []BindingPattern{ident}}
+	recordBindingField := &RecordBindingField{SourceSpan: span, Name: ident, Value: listBinding}
+	recordBinding := &RecordBindingPattern{SourceSpan: span, Fields: []*RecordBindingField{recordBindingField}}
 
 	assertSpan(t, number, span)
 	assertSpan(t, str, span)
@@ -67,6 +80,9 @@ func TestLiteralIdentifierAndListNodesPreserveSpansAndPayloads(t *testing.T) {
 	assertSpan(t, recordField, span)
 	assertSpan(t, record, span)
 	assertSpan(t, fieldAccess, span)
+	assertSpan(t, listBinding, span)
+	assertSpan(t, recordBindingField, span)
+	assertSpan(t, recordBinding, span)
 
 	if number.Value != 3.14 {
 		t.Fatalf("number value = %v, want 3.14", number.Value)
@@ -103,6 +119,14 @@ func TestLiteralIdentifierAndListNodesPreserveSpansAndPayloads(t *testing.T) {
 	if fieldAccess.Target != ident || fieldAccess.Name.Name != "name" {
 		t.Fatalf("field access shape was not preserved")
 	}
+
+	if len(listBinding.Elements) != 1 || listBinding.Elements[0] != ident {
+		t.Fatalf("list binding shape was not preserved")
+	}
+
+	if len(recordBinding.Fields) != 1 || recordBinding.Fields[0] != recordBindingField {
+		t.Fatalf("record binding field was not preserved")
+	}
 }
 
 func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
@@ -113,10 +137,23 @@ func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
 	value := &NumberLiteral{SourceSpan: span, Value: 1}
 	other := &Identifier{SourceSpan: span, Name: "xs"}
 	fieldTarget := &FieldAccessExpr{SourceSpan: span, Target: other, Name: fieldName}
+	listTarget := &ListBindingPattern{SourceSpan: span, Elements: []BindingPattern{name, other}}
+	recordTarget := &RecordBindingPattern{
+		SourceSpan: span,
+		Fields: []*RecordBindingField{
+			{
+				SourceSpan: span,
+				Name:       fieldName,
+				Value:      name,
+			},
+		},
+	}
 
 	block := &BlockExpr{SourceSpan: span, Expressions: []Expr{name, value}}
 	assign := &AssignmentExpr{SourceSpan: span, Target: name, Value: value}
 	fieldAssign := &AssignmentExpr{SourceSpan: span, Target: fieldTarget, Value: value}
+	listAssign := &AssignmentExpr{SourceSpan: span, Target: listTarget, Value: value}
+	recordAssign := &AssignmentExpr{SourceSpan: span, Target: recordTarget, Value: value}
 	index := &IndexExpr{SourceSpan: span, Target: other, Index: value}
 	unary := &UnaryExpr{SourceSpan: span, Operator: UnaryNegate, Operand: value}
 	binary := &BinaryExpr{SourceSpan: span, Left: name, Operator: BinaryAdd, Right: value}
@@ -149,7 +186,7 @@ func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
 	}
 	forExpr := &ForInExpr{
 		SourceSpan: span,
-		Binding:    name,
+		Binding:    listTarget,
 		Iterable:   other,
 		Body:       assign,
 	}
@@ -159,6 +196,8 @@ func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
 	assertSpan(t, block, span)
 	assertSpan(t, assign, span)
 	assertSpan(t, fieldAssign, span)
+	assertSpan(t, listAssign, span)
+	assertSpan(t, recordAssign, span)
 	assertSpan(t, index, span)
 	assertSpan(t, unary, span)
 	assertSpan(t, binary, span)
@@ -181,6 +220,14 @@ func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
 
 	if fieldAssign.Target != fieldTarget {
 		t.Fatalf("field assignment target was not preserved")
+	}
+
+	if listAssign.Target != listTarget {
+		t.Fatalf("list destructuring target was not preserved")
+	}
+
+	if recordAssign.Target != recordTarget {
+		t.Fatalf("record destructuring target was not preserved")
 	}
 
 	if index.Target != other || index.Index != value {
@@ -211,7 +258,7 @@ func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
 		t.Fatalf("match shape was not preserved")
 	}
 
-	if forExpr.Binding != name || forExpr.Iterable != other || forExpr.Body != assign {
+	if forExpr.Binding != listTarget || forExpr.Iterable != other || forExpr.Body != assign {
 		t.Fatalf("for-in shape was not preserved")
 	}
 }

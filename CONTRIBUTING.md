@@ -11,20 +11,6 @@ go build ./...
 gofmt -w .
 ```
 
-## Repository Layout
-
-- `cmd/molt`: CLI entrypoint and CLI tests
-- `internal/source`: source files, positions, and spans
-- `internal/diagnostic`: structured parse/runtime diagnostics and rendering
-- `internal/lexer`: tokenization
-- `internal/parser`: AST construction and precedence handling
-- `internal/ast`: AST nodes
-- `internal/runtime`: values, environments, rewriting, and display
-- `internal/evaluator`: execution and builtins
-- `examples`: verified runnable programs
-- `editors/vscode-molt`: VS Code syntax-highlighting and file-icon extension
-- `tests`: integration and end-to-end coverage
-
 ## Working Style
 
 - Keep behavior production-complete. Avoid placeholders and speculative shortcuts.
