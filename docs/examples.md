@@ -81,6 +81,15 @@ Expected output:
 ["o", "k"]
 ```
 
+[`examples/loops/break_continue.molt`](../examples/loops/break_continue.molt)
+: Uses `continue` to skip one item and `break` to stop the loop early once the target is found.
+
+Expected output:
+
+```txt
+[1, 3]
+```
+
 [`examples/others/guessing_game.molt`](../examples/others/guessing_game.molt)
 : Interactive example using `while`, `input()`, and `to_number()` to keep asking for guesses until the fixed secret number is found.
 
@@ -109,5 +118,6 @@ go run ./cmd/molt ./examples/basic/records.molt
 go run ./cmd/molt ./examples/basic/variant_gallery.molt
 go run ./cmd/molt ./examples/loops/while_loop.molt
 go run ./cmd/molt ./examples/loops/for_loop.molt
+go run ./cmd/molt ./examples/loops/break_continue.molt
 go run ./cmd/molt ./examples/others/guessing_game.molt
 ```

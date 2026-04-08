@@ -298,6 +298,21 @@ func TestRewriteTraversesForInExpressions(t *testing.T) {
 	}
 }
 
+func TestRewriteCanReplaceLoopControlExpressions(t *testing.T) {
+	rewritten, err := Rewrite(&ast.ContinueExpr{SourceSpan: helperSpan()}, &MutationValue{
+		Rules: []*ast.MutationRule{
+			rule(&ast.ContinueExpr{SourceSpan: helperSpan()}, &ast.BreakExpr{SourceSpan: helperSpan()}),
+		},
+	})
+	if err != nil {
+		t.Fatalf("Rewrite returned error: %v", err)
+	}
+
+	if _, ok := rewritten.(*ast.BreakExpr); !ok {
+		t.Fatalf("rewritten expr = %T, want break", rewritten)
+	}
+}
+
 func identifier(name string) *ast.Identifier {
 	span := helperSpan()
 	return &ast.Identifier{SourceSpan: span, Name: name}

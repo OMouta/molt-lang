@@ -84,6 +84,10 @@ func CloneExpr(expr ast.Expr) ast.Expr {
 		return &ast.BooleanLiteral{SourceSpan: node.SourceSpan, Value: node.Value}
 	case *ast.NilLiteral:
 		return &ast.NilLiteral{SourceSpan: node.SourceSpan}
+	case *ast.BreakExpr:
+		return &ast.BreakExpr{SourceSpan: node.SourceSpan}
+	case *ast.ContinueExpr:
+		return &ast.ContinueExpr{SourceSpan: node.SourceSpan}
 	case *ast.Identifier:
 		return &ast.Identifier{SourceSpan: node.SourceSpan, Name: node.Name}
 	case *ast.ExportExpr:
@@ -218,6 +222,12 @@ func EqualExpr(left, right ast.Expr) bool {
 		return ok && l.Value == r.Value
 	case *ast.NilLiteral:
 		_, ok := right.(*ast.NilLiteral)
+		return ok
+	case *ast.BreakExpr:
+		_, ok := right.(*ast.BreakExpr)
+		return ok
+	case *ast.ContinueExpr:
+		_, ok := right.(*ast.ContinueExpr)
 		return ok
 	case *ast.Identifier:
 		r, ok := right.(*ast.Identifier)
@@ -542,6 +552,8 @@ func validateMutationExpr(expr ast.Expr) error {
 		*ast.StringLiteral,
 		*ast.BooleanLiteral,
 		*ast.NilLiteral,
+		*ast.BreakExpr,
+		*ast.ContinueExpr,
 		*ast.Identifier:
 		return nil
 	case *ast.ExportExpr:

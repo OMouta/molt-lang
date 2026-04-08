@@ -36,6 +36,22 @@ type moduleExecution struct {
 	exportList []string
 }
 
+type loopControlKind string
+
+const (
+	loopControlBreak    loopControlKind = "break"
+	loopControlContinue loopControlKind = "continue"
+)
+
+type loopControlSignal struct {
+	kind loopControlKind
+	span source.Span
+}
+
+func (s loopControlSignal) Error() string {
+	return string(s.kind)
+}
+
 func New(output io.Writer) *Evaluator {
 	return &Evaluator{output: output}
 }
@@ -83,7 +99,7 @@ func (e *Evaluator) EvalProgram(program *ast.Program, env *runtime.Environment) 
 	for _, expr := range program.Expressions {
 		value, err := e.evalExpr(env, expr)
 		if err != nil {
-			return nil, err
+			return nil, e.wrapLoopControlError(err)
 		}
 
 		result = value
@@ -97,7 +113,12 @@ func (e *Evaluator) EvalExpr(expr ast.Expr, env *runtime.Environment) (runtime.V
 	e.beginRun()
 	defer e.endRun()
 
-	return e.evalExpr(env, expr)
+	value, err := e.evalExpr(env, expr)
+	if err != nil {
+		return nil, e.wrapLoopControlError(err)
+	}
+
+	return value, nil
 }
 
 func (e *Evaluator) evalExpr(env *runtime.Environment, expr ast.Expr) (runtime.Value, error) {
@@ -110,6 +131,10 @@ func (e *Evaluator) evalExpr(env *runtime.Environment, expr ast.Expr) (runtime.V
 		return &runtime.BooleanValue{Value: node.Value}, nil
 	case *ast.NilLiteral:
 		return runtime.Nil, nil
+	case *ast.BreakExpr:
+		return nil, loopControlSignal{kind: loopControlBreak, span: node.Span()}
+	case *ast.ContinueExpr:
+		return nil, loopControlSignal{kind: loopControlContinue, span: node.Span()}
 	case *ast.Identifier:
 		value, ok := env.Get(node.Name)
 		if !ok {
@@ -640,7 +665,19 @@ func (e *Evaluator) evalWhile(env *runtime.Environment, expr *ast.WhileExpr) (ru
 
 		iterationEnv := runtime.NewEnvironment(env)
 		if _, err := e.evalExpr(iterationEnv, expr.Body); err != nil {
-			return nil, err
+			signal, ok := asLoopControlSignal(err)
+			if !ok {
+				return nil, err
+			}
+
+			switch signal.kind {
+			case loopControlBreak:
+				return runtime.Nil, nil
+			case loopControlContinue:
+				continue
+			default:
+				return nil, err
+			}
 		}
 	}
 }
@@ -657,7 +694,19 @@ func (e *Evaluator) evalForIn(env *runtime.Environment, expr *ast.ForInExpr) (ru
 			iterationEnv := runtime.NewEnvironment(env)
 			iterationEnv.Define(expr.Binding.Name, element)
 			if _, err := e.evalExpr(iterationEnv, expr.Body); err != nil {
-				return nil, err
+				signal, ok := asLoopControlSignal(err)
+				if !ok {
+					return nil, err
+				}
+
+				switch signal.kind {
+				case loopControlBreak:
+					return runtime.Nil, nil
+				case loopControlContinue:
+					continue
+				default:
+					return nil, err
+				}
 			}
 		}
 	case *runtime.StringValue:
@@ -665,7 +714,19 @@ func (e *Evaluator) evalForIn(env *runtime.Environment, expr *ast.ForInExpr) (ru
 			iterationEnv := runtime.NewEnvironment(env)
 			iterationEnv.Define(expr.Binding.Name, &runtime.StringValue{Value: string(r)})
 			if _, err := e.evalExpr(iterationEnv, expr.Body); err != nil {
-				return nil, err
+				signal, ok := asLoopControlSignal(err)
+				if !ok {
+					return nil, err
+				}
+
+				switch signal.kind {
+				case loopControlBreak:
+					return runtime.Nil, nil
+				case loopControlContinue:
+					continue
+				default:
+					return nil, err
+				}
 			}
 		}
 	default:
@@ -749,6 +810,15 @@ func (e *Evaluator) evalCall(env *runtime.Environment, expr *ast.CallExpr) (runt
 
 func (e *Evaluator) runtimeError(node ast.Expr, message string) error {
 	return diagnostic.NewRuntimeError(message, node.Span())
+}
+
+func (e *Evaluator) wrapLoopControlError(err error) error {
+	signal, ok := asLoopControlSignal(err)
+	if !ok {
+		return err
+	}
+
+	return diagnostic.NewRuntimeError(fmt.Sprintf("%s is only allowed inside loops", signal.kind), signal.span)
 }
 
 func (e *Evaluator) prepareEnvironment(env *runtime.Environment) *runtime.Environment {
@@ -997,7 +1067,12 @@ func (e *Evaluator) evalCodeValue(code *runtime.CodeValue) (runtime.Value, error
 	frame := runtime.NewEnvironment(captured)
 	e.ensureBuiltins(frame)
 
-	return e.evalExpr(frame, code.Body)
+	value, err := e.evalExpr(frame, code.Body)
+	if err != nil {
+		return nil, e.wrapLoopControlError(err)
+	}
+
+	return value, nil
 }
 
 func evalBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
@@ -1559,7 +1634,12 @@ func (e *Evaluator) invokeValue(env *runtime.Environment, callee runtime.Value, 
 			callEnv.Define(parameter, args[i])
 		}
 
-		return e.evalExpr(callEnv, fn.Body)
+		value, err := e.evalExpr(callEnv, fn.Body)
+		if err != nil {
+			return nil, e.wrapLoopControlError(err)
+		}
+
+		return value, nil
 	case runtime.NativeFunction:
 		if native, ok := callee.(*runtime.NativeFunctionValue); ok && native.Arity >= 0 && len(args) != native.Arity {
 			return nil, diagnostic.NewRuntimeError(arityMessage(native.Arity, len(args)), span)
@@ -1710,6 +1790,11 @@ func valuesEqual(left, right runtime.Value) bool {
 
 func arityMessage(expected, got int) string {
 	return fmt.Sprintf("expected %d arguments but got %d", expected, got)
+}
+
+func asLoopControlSignal(err error) (loopControlSignal, bool) {
+	signal, ok := err.(loopControlSignal)
+	return signal, ok
 }
 
 func (e *Evaluator) moduleLoadIndex(path string) int {

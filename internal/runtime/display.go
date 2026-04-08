@@ -230,6 +230,10 @@ func formatExpr(expr ast.Expr, indent int) string {
 		return "false"
 	case *ast.NilLiteral:
 		return "nil"
+	case *ast.BreakExpr:
+		return "break"
+	case *ast.ContinueExpr:
+		return "continue"
 	case *ast.Identifier:
 		return node.Name
 	case *ast.ExportExpr:

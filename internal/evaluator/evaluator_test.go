@@ -212,6 +212,24 @@ func TestEvaluateForInLoopIteratesStringsByUnicodeCodePoint(t *testing.T) {
 	}
 }
 
+func TestEvaluateLoopControlSupportsBreakContinueAndNestedLoops(t *testing.T) {
+	result := mustEval(t, runtime.NewEnvironment(nil), "loop_control.molt", ""+
+		"pairs = []\n"+
+		"for outer in [1, 2, 3] -> {\n"+
+		"  if outer == 2 -> continue else -> nil\n"+
+		"  for inner in [10, 20, 30] -> {\n"+
+		"    if inner == 30 -> break else -> nil\n"+
+		"    push(pairs, outer + inner)\n"+
+		"  }\n"+
+		"}\n"+
+		"pairs",
+	)
+
+	if got := runtime.ShowValue(result); got != `[11, 21, 13, 23]` {
+		t.Fatalf("pairs = %q, want %q", got, `[11, 21, 13, 23]`)
+	}
+}
+
 func TestEvaluateOperatorsConditionalsAndShortCircuiting(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
 	result := mustEval(t, env, "operators.molt", ""+
@@ -417,6 +435,8 @@ func TestEvaluateRuntimeErrors(t *testing.T) {
 		{name: "condition type", input: "if 1 -> 2 else -> 3", message: `if condition must be boolean, got "number"`},
 		{name: "while condition type", input: "while 1 -> 2", message: `while condition must be boolean, got "number"`},
 		{name: "for iterable type", input: "for x in 1 -> x", message: `for loop expects list or string, got "number"`},
+		{name: "top level break", input: "break", message: "break is only allowed inside loops"},
+		{name: "top level continue", input: "continue", message: "continue is only allowed inside loops"},
 		{name: "user arity", input: "f = fn(x) = x\nf()", message: "expected 1 arguments but got 0"},
 		{name: "invalid eval target", input: "eval(10)", message: `eval expects code value, got "number"`},
 		{name: "invalid mutation rule", input: "~{ + -> 1 }", message: `invalid mutation rule 1: operator replacement rules must replace one operator with another`},
@@ -447,6 +467,39 @@ func TestEvaluateRuntimeErrors(t *testing.T) {
 		{name: "invalid write_file text", input: `write_file("out.txt", 1)`, message: `write_file expects string text as second argument, got "number"`},
 		{name: "empty write_file path", input: `write_file("", "x")`, message: "write_file path cannot be empty"},
 		{name: "empty import path", input: `import ""`, message: "import path cannot be empty"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := evalStringWithEvaluator(nil, runtime.NewEnvironment(nil), tc.name+".molt", tc.input)
+			runtimeErr := expectRuntimeError(t, err)
+			if runtimeErr.Diagnostic().Message != tc.message {
+				t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, tc.message)
+			}
+		})
+	}
+}
+
+func TestEvaluateLoopControlDoesNotCrossFunctionOrEvalBoundaries(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		message string
+	}{
+		{
+			name: "function break",
+			input: "" +
+				"fn stop() = break\n" +
+				"while true -> stop()",
+			message: "break is only allowed inside loops",
+		},
+		{
+			name: "eval continue",
+			input: "" +
+				"code = @{ continue }\n" +
+				"while true -> eval(code)",
+			message: "continue is only allowed inside loops",
+		},
 	}
 
 	for _, tc := range tests {

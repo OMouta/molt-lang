@@ -25,6 +25,8 @@ var (
 	_ Expr = (*ConditionalExpr)(nil)
 	_ Expr = (*WhileExpr)(nil)
 	_ Expr = (*ForInExpr)(nil)
+	_ Expr = (*BreakExpr)(nil)
+	_ Expr = (*ContinueExpr)(nil)
 	_ Expr = (*ExportExpr)(nil)
 	_ Expr = (*ImportExpr)(nil)
 	_ Expr = (*CallExpr)(nil)
@@ -129,6 +131,8 @@ func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
 		Iterable:   other,
 		Body:       assign,
 	}
+	breakExpr := &BreakExpr{SourceSpan: span}
+	continueExpr := &ContinueExpr{SourceSpan: span}
 
 	assertSpan(t, block, span)
 	assertSpan(t, assign, span)
@@ -138,6 +142,8 @@ func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
 	assertSpan(t, conditional, span)
 	assertSpan(t, whileExpr, span)
 	assertSpan(t, forExpr, span)
+	assertSpan(t, breakExpr, span)
+	assertSpan(t, continueExpr, span)
 
 	if len(block.Expressions) != 2 {
 		t.Fatalf("block expression count = %d, want 2", len(block.Expressions))

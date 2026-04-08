@@ -20,3 +20,17 @@ type ForInExpr struct {
 
 func (n *ForInExpr) Span() source.Span { return n.SourceSpan }
 func (*ForInExpr) exprNode()           {}
+
+type BreakExpr struct {
+	SourceSpan source.Span
+}
+
+func (n *BreakExpr) Span() source.Span { return n.SourceSpan }
+func (*BreakExpr) exprNode()           {}
+
+type ContinueExpr struct {
+	SourceSpan source.Span
+}
+
+func (n *ContinueExpr) Span() source.Span { return n.SourceSpan }
+func (*ContinueExpr) exprNode()           {}

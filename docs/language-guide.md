@@ -102,6 +102,8 @@ for ch in "text" -> {
   step1
   step2
 }
+break
+continue
 ```
 
 Quoted-argument sugar:
@@ -139,6 +141,8 @@ The language uses strict booleans. `if`, `and`, `or`, and `not` require real boo
 Each `while` iteration runs in a fresh child scope rooted in the surrounding environment. Assignments can still update outer bindings, but new iteration-local bindings do not leak after the iteration ends.
 
 `for` currently iterates over lists and strings. String iteration walks Unicode code points and yields one-character strings. A `for` expression also returns `nil`, and each iteration uses the same fresh child-scope model as `while`: outer bindings can be updated, but the loop binding and any new locals do not leak after the iteration ends.
+
+`break` exits the nearest enclosing loop immediately. `continue` skips the rest of the current iteration and resumes with the next one. Both forms work through surrounding block scopes, but execution raises a runtime diagnostic if either form is reached outside a loop body.
 
 ## Quote And Eval
 
@@ -320,6 +324,7 @@ The runtime reports precise diagnostics for:
 - invalid record field access
 - invalid while conditions
 - invalid for loop iterables
+- invalid `break` and `continue` outside loops
 - invalid mutation targets
 - invalid eval targets
 - invalid call targets

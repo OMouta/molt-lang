@@ -95,6 +95,19 @@ func TestSpecExamples(t *testing.T) {
 		expectShownValue(t, value, `[6, ["o", "k"]]`)
 	})
 
+	t.Run("loop control", func(t *testing.T) {
+		value, _ := mustExecuteProgram(t, "spec_loop_control.molt", ""+
+			"xs = []\n"+
+			"for item in [1, 2, 3, 4] -> {\n"+
+			"  if item == 2 -> continue else -> nil\n"+
+			"  if item == 4 -> break else -> nil\n"+
+			"  push(xs, item)\n"+
+			"}\n"+
+			"xs",
+		)
+		expectShownValue(t, value, `[1, 3]`)
+	})
+
 	t.Run("conditional", func(t *testing.T) {
 		value, _ := mustExecuteProgram(t, "spec_conditional.molt", "if true -> 1 else -> 2")
 		expectShownValue(t, value, "1")

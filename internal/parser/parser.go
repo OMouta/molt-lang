@@ -446,6 +446,10 @@ func (p *Parser) parsePrimary() (ast.Expr, error) {
 		return &ast.BooleanLiteral{SourceSpan: p.previous().Span, Value: false}, nil
 	case p.match(lexer.Nil):
 		return &ast.NilLiteral{SourceSpan: p.previous().Span}, nil
+	case p.match(lexer.Break):
+		return &ast.BreakExpr{SourceSpan: p.previous().Span}, nil
+	case p.match(lexer.Continue):
+		return &ast.ContinueExpr{SourceSpan: p.previous().Span}, nil
 	case p.match(lexer.Identifier):
 		token := p.previous()
 		return &ast.Identifier{SourceSpan: token.Span, Name: token.Value}, nil

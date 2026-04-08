@@ -15,21 +15,23 @@ const (
 	Number     Kind = "number"
 	String     Kind = "string"
 
-	Fn     Kind = "fn"
-	If     Kind = "if"
-	Else   Kind = "else"
-	While  Kind = "while"
-	For    Kind = "for"
-	In     Kind = "in"
-	Export Kind = "export"
-	Import Kind = "import"
-	Record Kind = "record"
-	And    Kind = "and"
-	Or     Kind = "or"
-	Not    Kind = "not"
-	True   Kind = "true"
-	False  Kind = "false"
-	Nil    Kind = "nil"
+	Fn       Kind = "fn"
+	If       Kind = "if"
+	Else     Kind = "else"
+	While    Kind = "while"
+	For      Kind = "for"
+	In       Kind = "in"
+	Break    Kind = "break"
+	Continue Kind = "continue"
+	Export   Kind = "export"
+	Import   Kind = "import"
+	Record   Kind = "record"
+	And      Kind = "and"
+	Or       Kind = "or"
+	Not      Kind = "not"
+	True     Kind = "true"
+	False    Kind = "false"
+	Nil      Kind = "nil"
 
 	LeftParen    Kind = "("
 	RightParen   Kind = ")"
@@ -76,21 +78,23 @@ func (t Token) String() string {
 }
 
 var keywords = map[string]Kind{
-	"fn":     Fn,
-	"if":     If,
-	"else":   Else,
-	"while":  While,
-	"for":    For,
-	"in":     In,
-	"export": Export,
-	"import": Import,
-	"record": Record,
-	"and":    And,
-	"or":     Or,
-	"not":    Not,
-	"true":   True,
-	"false":  False,
-	"nil":    Nil,
+	"fn":       Fn,
+	"if":       If,
+	"else":     Else,
+	"while":    While,
+	"for":      For,
+	"in":       In,
+	"break":    Break,
+	"continue": Continue,
+	"export":   Export,
+	"import":   Import,
+	"record":   Record,
+	"and":      And,
+	"or":       Or,
+	"not":      Not,
+	"true":     True,
+	"false":    False,
+	"nil":      Nil,
 }
 
 func LookupKeyword(text string) (Kind, bool) {

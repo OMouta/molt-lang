@@ -8,15 +8,15 @@ import (
 )
 
 func TestParsePrimaryFormsAndSequences(t *testing.T) {
-	program := mustParse(t, "primary.molt", "{\n  [1, 2]\n  (\"ok\")\n  nil\n  export value\n  import \"./lib.molt\"\n  record { answer: 42 }\n}")
+	program := mustParse(t, "primary.molt", "{\n  [1, 2]\n  (\"ok\")\n  nil\n  break\n  continue\n  export value\n  import \"./lib.molt\"\n  record { answer: 42 }\n}")
 
 	if len(program.Expressions) != 1 {
 		t.Fatalf("program expression count = %d, want 1", len(program.Expressions))
 	}
 
 	block := expectExpr[*ast.BlockExpr](t, program.Expressions[0])
-	if len(block.Expressions) != 6 {
-		t.Fatalf("block expression count = %d, want 6", len(block.Expressions))
+	if len(block.Expressions) != 8 {
+		t.Fatalf("block expression count = %d, want 8", len(block.Expressions))
 	}
 
 	list := expectExpr[*ast.ListLiteral](t, block.Expressions[0])
@@ -34,17 +34,25 @@ func TestParsePrimaryFormsAndSequences(t *testing.T) {
 		t.Fatalf("expected nil literal, got %T", block.Expressions[2])
 	}
 
-	exportExpr := expectExpr[*ast.ExportExpr](t, block.Expressions[3])
+	if _, ok := block.Expressions[3].(*ast.BreakExpr); !ok {
+		t.Fatalf("expected break expression, got %T", block.Expressions[3])
+	}
+
+	if _, ok := block.Expressions[4].(*ast.ContinueExpr); !ok {
+		t.Fatalf("expected continue expression, got %T", block.Expressions[4])
+	}
+
+	exportExpr := expectExpr[*ast.ExportExpr](t, block.Expressions[5])
 	if exportExpr.Name.Name != "value" {
 		t.Fatalf("export name = %q, want %q", exportExpr.Name.Name, "value")
 	}
 
-	importExpr := expectExpr[*ast.ImportExpr](t, block.Expressions[4])
+	importExpr := expectExpr[*ast.ImportExpr](t, block.Expressions[6])
 	if importExpr.Path.Value != "./lib.molt" {
 		t.Fatalf("import path = %q, want %q", importExpr.Path.Value, "./lib.molt")
 	}
 
-	record := expectExpr[*ast.RecordLiteral](t, block.Expressions[5])
+	record := expectExpr[*ast.RecordLiteral](t, block.Expressions[7])
 	if len(record.Fields) != 1 {
 		t.Fatalf("record field count = %d, want 1", len(record.Fields))
 	}
@@ -250,6 +258,23 @@ func TestParsePrecedenceAndAssociativity(t *testing.T) {
 
 	if _, ok := forExpr.Body.(*ast.AssignmentExpr); !ok {
 		t.Fatalf("for body = %T, want assignment", forExpr.Body)
+	}
+}
+
+func TestParseLoopControlInsideConditionalBranches(t *testing.T) {
+	program := mustParse(t, "loop_control.molt", "while true -> if false -> break else -> continue")
+	if len(program.Expressions) != 1 {
+		t.Fatalf("program expression count = %d, want 1", len(program.Expressions))
+	}
+
+	whileExpr := expectExpr[*ast.WhileExpr](t, program.Expressions[0])
+	conditional := expectExpr[*ast.ConditionalExpr](t, whileExpr.Body)
+	if _, ok := conditional.ThenBranch.(*ast.BreakExpr); !ok {
+		t.Fatalf("then branch = %T, want break", conditional.ThenBranch)
+	}
+
+	if _, ok := conditional.ElseBranch.(*ast.ContinueExpr); !ok {
+		t.Fatalf("else branch = %T, want continue", conditional.ElseBranch)
 	}
 }
 

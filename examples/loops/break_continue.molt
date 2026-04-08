@@ -1,0 +1,8 @@
+xs = []
+for item in [1, 2, 3, 4] -> {
+  if item == 2 -> continue else -> nil
+  if item == 4 -> break else -> nil
+  push(xs, item)
+}
+
+print(xs)

@@ -186,3 +186,19 @@ func TestShowValueFormatsCodeContainingForInLoop(t *testing.T) {
 		t.Fatalf("code = %q, want %q", got, "@{ for item in items -> total = (total + item) }")
 	}
 }
+
+func TestShowValueFormatsCodeContainingLoopControl(t *testing.T) {
+	code := &CodeValue{
+		Body: &ast.BlockExpr{
+			Expressions: []ast.Expr{
+				&ast.ContinueExpr{},
+				&ast.BreakExpr{},
+			},
+		},
+	}
+
+	want := "@{\n  continue\n  break\n}"
+	if got := ShowValue(code); got != want {
+		t.Fatalf("code = %q, want %q", got, want)
+	}
+}

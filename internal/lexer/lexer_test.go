@@ -167,6 +167,24 @@ func TestLexRecognizesForInKeywords(t *testing.T) {
 	checkTokenValue(t, tokens[5], "item")
 }
 
+func TestLexRecognizesLoopControlKeywords(t *testing.T) {
+	tokens, err := Lex("loop_control.molt", "break\ncontinue")
+	if err != nil {
+		t.Fatalf("Lex returned error: %v", err)
+	}
+
+	want := []Kind{Break, Continue, EOF}
+	if len(tokens) != len(want) {
+		t.Fatalf("token count = %d, want %d", len(tokens), len(want))
+	}
+
+	for i := range want {
+		if tokens[i].Kind != want[i] {
+			t.Fatalf("token[%d] kind = %s, want %s", i, tokens[i].Kind, want[i])
+		}
+	}
+}
+
 func TestLexRecognizesRecordSyntax(t *testing.T) {
 	tokens, err := Lex("record.molt", `record { name: "molt", items: [1, 2] }`)
 	if err != nil {
