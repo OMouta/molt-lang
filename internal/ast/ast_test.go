@@ -23,6 +23,8 @@ var (
 	_ Expr = (*UnaryExpr)(nil)
 	_ Expr = (*BinaryExpr)(nil)
 	_ Expr = (*ConditionalExpr)(nil)
+	_ Expr = (*WhileExpr)(nil)
+	_ Expr = (*ForInExpr)(nil)
 	_ Expr = (*ExportExpr)(nil)
 	_ Expr = (*ImportExpr)(nil)
 	_ Expr = (*CallExpr)(nil)
@@ -116,6 +118,17 @@ func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
 		ThenBranch: name,
 		ElseBranch: value,
 	}
+	whileExpr := &WhileExpr{
+		SourceSpan: span,
+		Condition:  &BooleanLiteral{SourceSpan: span, Value: true},
+		Body:       assign,
+	}
+	forExpr := &ForInExpr{
+		SourceSpan: span,
+		Binding:    name,
+		Iterable:   other,
+		Body:       assign,
+	}
 
 	assertSpan(t, block, span)
 	assertSpan(t, assign, span)
@@ -123,6 +136,8 @@ func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
 	assertSpan(t, unary, span)
 	assertSpan(t, binary, span)
 	assertSpan(t, conditional, span)
+	assertSpan(t, whileExpr, span)
+	assertSpan(t, forExpr, span)
 
 	if len(block.Expressions) != 2 {
 		t.Fatalf("block expression count = %d, want 2", len(block.Expressions))
@@ -146,6 +161,14 @@ func TestStructuredExpressionNodesPreserveChildrenAndOperators(t *testing.T) {
 
 	if conditional.ThenBranch != name || conditional.ElseBranch != value {
 		t.Fatalf("conditional branches were not preserved")
+	}
+
+	if whileExpr.Condition == nil || whileExpr.Body != assign {
+		t.Fatalf("while shape was not preserved")
+	}
+
+	if forExpr.Binding != name || forExpr.Iterable != other || forExpr.Body != assign {
+		t.Fatalf("for-in shape was not preserved")
 	}
 }
 

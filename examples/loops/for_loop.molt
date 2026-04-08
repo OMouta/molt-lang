@@ -1,0 +1,13 @@
+total = 0
+for item in [1, 2, 3] -> {
+  total = total + item
+}
+
+print(total)
+
+chars = []
+for ch in "ok" -> {
+  push(chars, ch)
+}
+
+print(chars)

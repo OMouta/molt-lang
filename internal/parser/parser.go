@@ -90,6 +90,67 @@ func (p *Parser) parseExpression() (ast.Expr, error) {
 }
 
 func (p *Parser) parseConditional() (ast.Expr, error) {
+	if p.match(lexer.For) {
+		start := p.previous()
+
+		bindingToken, err := p.consume(lexer.Identifier, "expected identifier after 'for'")
+		if err != nil {
+			return nil, err
+		}
+
+		if _, err := p.consume(lexer.In, "expected 'in' after loop binding"); err != nil {
+			return nil, err
+		}
+
+		iterable, err := p.parseAssignment()
+		if err != nil {
+			return nil, err
+		}
+
+		if _, err := p.consume(lexer.Arrow, "expected '->' after for iterable"); err != nil {
+			return nil, err
+		}
+
+		body, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+
+		return &ast.ForInExpr{
+			SourceSpan: p.mergeSpans(start.Span, body.Span()),
+			Binding: &ast.Identifier{
+				SourceSpan: bindingToken.Span,
+				Name:       bindingToken.Value,
+			},
+			Iterable: iterable,
+			Body:     body,
+		}, nil
+	}
+
+	if p.match(lexer.While) {
+		start := p.previous()
+
+		condition, err := p.parseAssignment()
+		if err != nil {
+			return nil, err
+		}
+
+		if _, err := p.consume(lexer.Arrow, "expected '->' after while condition"); err != nil {
+			return nil, err
+		}
+
+		body, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+
+		return &ast.WhileExpr{
+			SourceSpan: p.mergeSpans(start.Span, body.Span()),
+			Condition:  condition,
+			Body:       body,
+		}, nil
+	}
+
 	if !p.match(lexer.If) {
 		return p.parseAssignment()
 	}

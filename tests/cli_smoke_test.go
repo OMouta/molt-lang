@@ -33,6 +33,16 @@ func TestCLISmokeExamples(t *testing.T) {
 			path:       "examples/variant_gallery.molt",
 			wantOutput: "[6, 7, \"code\"]\n",
 		},
+		{
+			name:       "while loop",
+			path:       "examples/while_loop.molt",
+			wantOutput: "3\n",
+		},
+		{
+			name:       "for loop",
+			path:       "examples/for_loop.molt",
+			wantOutput: "6\n[\"o\", \"k\"]\n",
+		},
 	}
 
 	for _, tc := range tests {

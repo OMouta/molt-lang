@@ -75,6 +75,26 @@ func TestSpecExamples(t *testing.T) {
 		expectShownValue(t, value, `[2, true, ["name", "nested"], ["molt", record { ok: true }]]`)
 	})
 
+	t.Run("while loop", func(t *testing.T) {
+		value, _ := mustExecuteProgram(t, "spec_while_loop.molt", ""+
+			"x = 0\n"+
+			"loop = while x < 2 -> x = x + 1\n"+
+			"[loop, x]",
+		)
+		expectShownValue(t, value, "[nil, 2]")
+	})
+
+	t.Run("for loop", func(t *testing.T) {
+		value, _ := mustExecuteProgram(t, "spec_for_loop.molt", ""+
+			"total = 0\n"+
+			"for item in [1, 2, 3] -> total = total + item\n"+
+			"chars = []\n"+
+			"for ch in \"ok\" -> push(chars, ch)\n"+
+			"[total, chars]",
+		)
+		expectShownValue(t, value, `[6, ["o", "k"]]`)
+	})
+
 	t.Run("conditional", func(t *testing.T) {
 		value, _ := mustExecuteProgram(t, "spec_conditional.molt", "if true -> 1 else -> 2")
 		expectShownValue(t, value, "1")

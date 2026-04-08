@@ -145,3 +145,44 @@ func TestShowValueFormatsCodeContainingFieldAccess(t *testing.T) {
 		t.Fatalf("code = %q, want %q", got, "@{ profile.name }")
 	}
 }
+
+func TestShowValueFormatsCodeContainingWhileLoop(t *testing.T) {
+	code := &CodeValue{
+		Body: &ast.WhileExpr{
+			Condition: &ast.Identifier{Name: "keepGoing"},
+			Body: &ast.AssignmentExpr{
+				Target: &ast.Identifier{Name: "x"},
+				Value: &ast.BinaryExpr{
+					Left:     &ast.Identifier{Name: "x"},
+					Operator: ast.BinaryAdd,
+					Right:    &ast.NumberLiteral{Value: 1},
+				},
+			},
+		},
+	}
+
+	if got := ShowValue(code); got != "@{ while keepGoing -> x = (x + 1) }" {
+		t.Fatalf("code = %q, want %q", got, "@{ while keepGoing -> x = (x + 1) }")
+	}
+}
+
+func TestShowValueFormatsCodeContainingForInLoop(t *testing.T) {
+	code := &CodeValue{
+		Body: &ast.ForInExpr{
+			Binding:  &ast.Identifier{Name: "item"},
+			Iterable: &ast.Identifier{Name: "items"},
+			Body: &ast.AssignmentExpr{
+				Target: &ast.Identifier{Name: "total"},
+				Value: &ast.BinaryExpr{
+					Left:     &ast.Identifier{Name: "total"},
+					Operator: ast.BinaryAdd,
+					Right:    &ast.Identifier{Name: "item"},
+				},
+			},
+		},
+	}
+
+	if got := ShowValue(code); got != "@{ for item in items -> total = (total + item) }" {
+		t.Fatalf("code = %q, want %q", got, "@{ for item in items -> total = (total + item) }")
+	}
+}

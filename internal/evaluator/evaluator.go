@@ -141,6 +141,10 @@ func (e *Evaluator) evalExpr(env *runtime.Environment, expr ast.Expr) (runtime.V
 		return e.evalBinary(env, node)
 	case *ast.ConditionalExpr:
 		return e.evalConditional(env, node)
+	case *ast.WhileExpr:
+		return e.evalWhile(env, node)
+	case *ast.ForInExpr:
+		return e.evalForIn(env, node)
 	case *ast.NamedFunctionExpr:
 		return e.evalNamedFunction(env, node), nil
 	case *ast.FunctionLiteralExpr:
@@ -616,6 +620,59 @@ func (e *Evaluator) evalConditional(env *runtime.Environment, expr *ast.Conditio
 	}
 
 	return e.evalExpr(env, expr.ElseBranch)
+}
+
+func (e *Evaluator) evalWhile(env *runtime.Environment, expr *ast.WhileExpr) (runtime.Value, error) {
+	for {
+		condition, err := e.evalExpr(env, expr.Condition)
+		if err != nil {
+			return nil, err
+		}
+
+		boolean, ok := condition.(*runtime.BooleanValue)
+		if !ok {
+			return nil, e.runtimeError(expr.Condition, fmt.Sprintf("while condition must be boolean, got %q", condition.TypeName()))
+		}
+
+		if !boolean.Value {
+			return runtime.Nil, nil
+		}
+
+		iterationEnv := runtime.NewEnvironment(env)
+		if _, err := e.evalExpr(iterationEnv, expr.Body); err != nil {
+			return nil, err
+		}
+	}
+}
+
+func (e *Evaluator) evalForIn(env *runtime.Environment, expr *ast.ForInExpr) (runtime.Value, error) {
+	iterable, err := e.evalExpr(env, expr.Iterable)
+	if err != nil {
+		return nil, err
+	}
+
+	switch value := iterable.(type) {
+	case *runtime.ListValue:
+		for _, element := range value.Elements {
+			iterationEnv := runtime.NewEnvironment(env)
+			iterationEnv.Define(expr.Binding.Name, element)
+			if _, err := e.evalExpr(iterationEnv, expr.Body); err != nil {
+				return nil, err
+			}
+		}
+	case *runtime.StringValue:
+		for _, r := range []rune(value.Value) {
+			iterationEnv := runtime.NewEnvironment(env)
+			iterationEnv.Define(expr.Binding.Name, &runtime.StringValue{Value: string(r)})
+			if _, err := e.evalExpr(iterationEnv, expr.Body); err != nil {
+				return nil, err
+			}
+		}
+	default:
+		return nil, e.runtimeError(expr.Iterable, fmt.Sprintf("for loop expects list or string, got %q", iterable.TypeName()))
+	}
+
+	return runtime.Nil, nil
 }
 
 func (e *Evaluator) evalNamedFunction(env *runtime.Environment, expr *ast.NamedFunctionExpr) runtime.Value {

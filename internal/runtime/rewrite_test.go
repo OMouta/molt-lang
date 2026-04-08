@@ -224,6 +224,80 @@ func TestRewriteTraversesRecordLiteralsAndFieldAccess(t *testing.T) {
 	}
 }
 
+func TestRewriteTraversesWhileExpressions(t *testing.T) {
+	span := helperSpan()
+	expr := &ast.WhileExpr{
+		SourceSpan: span,
+		Condition:  identifier("keepGoing"),
+		Body: &ast.AssignmentExpr{
+			SourceSpan: span,
+			Target:     identifier("x"),
+			Value:      binary(identifier("x"), "+", number(1)),
+		},
+	}
+
+	rewritten, err := Rewrite(expr, &MutationValue{
+		Rules: []*ast.MutationRule{
+			rule(identifier("keepGoing"), identifier("running")),
+			rule(identifier("x"), identifier("total")),
+		},
+	})
+	if err != nil {
+		t.Fatalf("Rewrite returned error: %v", err)
+	}
+
+	whileExpr := expectExpr[*ast.WhileExpr](t, rewritten)
+	condition := expectExpr[*ast.Identifier](t, whileExpr.Condition)
+	if condition.Name != "running" {
+		t.Fatalf("condition = %q, want %q", condition.Name, "running")
+	}
+
+	assign := expectExpr[*ast.AssignmentExpr](t, whileExpr.Body)
+	if assign.Target.Name != "total" {
+		t.Fatalf("assignment target = %q, want %q", assign.Target.Name, "total")
+	}
+}
+
+func TestRewriteTraversesForInExpressions(t *testing.T) {
+	span := helperSpan()
+	expr := &ast.ForInExpr{
+		SourceSpan: span,
+		Binding:    identifier("item"),
+		Iterable:   identifier("items"),
+		Body: &ast.AssignmentExpr{
+			SourceSpan: span,
+			Target:     identifier("total"),
+			Value:      binary(identifier("total"), "+", identifier("item")),
+		},
+	}
+
+	rewritten, err := Rewrite(expr, &MutationValue{
+		Rules: []*ast.MutationRule{
+			rule(identifier("item"), identifier("entry")),
+			rule(identifier("items"), identifier("values")),
+			rule(identifier("total"), identifier("sum")),
+		},
+	})
+	if err != nil {
+		t.Fatalf("Rewrite returned error: %v", err)
+	}
+
+	forExpr := expectExpr[*ast.ForInExpr](t, rewritten)
+	if forExpr.Binding.Name != "entry" {
+		t.Fatalf("binding = %q, want %q", forExpr.Binding.Name, "entry")
+	}
+
+	iterable := expectExpr[*ast.Identifier](t, forExpr.Iterable)
+	if iterable.Name != "values" {
+		t.Fatalf("iterable = %q, want %q", iterable.Name, "values")
+	}
+
+	assign := expectExpr[*ast.AssignmentExpr](t, forExpr.Body)
+	if assign.Target.Name != "sum" {
+		t.Fatalf("assignment target = %q, want %q", assign.Target.Name, "sum")
+	}
+}
+
 func identifier(name string) *ast.Identifier {
 	span := helperSpan()
 	return &ast.Identifier{SourceSpan: span, Name: name}

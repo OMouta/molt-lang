@@ -180,10 +180,10 @@ func TestParseMutationApplicationIsLeftAssociative(t *testing.T) {
 }
 
 func TestParsePrecedenceAndAssociativity(t *testing.T) {
-	program := mustParse(t, "precedence.molt", "x = a or b and c == d + e * -f\nif cond -> left = 1 else -> right = 2")
+	program := mustParse(t, "precedence.molt", "x = a or b and c == d + e * -f\nif cond -> left = 1 else -> right = 2\nwhile keepGoing -> step = step + 1\nfor item in xs -> total = total + item")
 
-	if len(program.Expressions) != 2 {
-		t.Fatalf("program expression count = %d, want 2", len(program.Expressions))
+	if len(program.Expressions) != 4 {
+		t.Fatalf("program expression count = %d, want 4", len(program.Expressions))
 	}
 
 	assign := expectExpr[*ast.AssignmentExpr](t, program.Expressions[0])
@@ -228,6 +228,28 @@ func TestParsePrecedenceAndAssociativity(t *testing.T) {
 
 	if _, ok := conditional.ElseBranch.(*ast.AssignmentExpr); !ok {
 		t.Fatalf("else branch = %T, want assignment", conditional.ElseBranch)
+	}
+
+	whileExpr := expectExpr[*ast.WhileExpr](t, program.Expressions[2])
+	if _, ok := whileExpr.Condition.(*ast.Identifier); !ok {
+		t.Fatalf("while condition = %T, want identifier", whileExpr.Condition)
+	}
+
+	if _, ok := whileExpr.Body.(*ast.AssignmentExpr); !ok {
+		t.Fatalf("while body = %T, want assignment", whileExpr.Body)
+	}
+
+	forExpr := expectExpr[*ast.ForInExpr](t, program.Expressions[3])
+	if forExpr.Binding.Name != "item" {
+		t.Fatalf("for binding = %q, want %q", forExpr.Binding.Name, "item")
+	}
+
+	if _, ok := forExpr.Iterable.(*ast.Identifier); !ok {
+		t.Fatalf("for iterable = %T, want identifier", forExpr.Iterable)
+	}
+
+	if _, ok := forExpr.Body.(*ast.AssignmentExpr); !ok {
+		t.Fatalf("for body = %T, want assignment", forExpr.Body)
 	}
 }
 
@@ -328,6 +350,10 @@ func TestParseRejectsMalformedPrograms(t *testing.T) {
 		{name: "chained relational", input: "a < b < c", message: "chained relational operators are not allowed"},
 		{name: "chained equality", input: "a == b != c", message: "chained equality operators are not allowed"},
 		{name: "missing else", input: "if x -> y", message: "expected 'else' after then branch"},
+		{name: "while missing arrow", input: "while x y", message: "expected '->' after while condition"},
+		{name: "for missing binding", input: "for 1 in xs -> x", message: "expected identifier after 'for'"},
+		{name: "for missing in", input: "for item xs -> x", message: "expected 'in' after loop binding"},
+		{name: "for missing arrow", input: "for item in xs x", message: "expected '->' after for iterable"},
 		{name: "same-line block sequence", input: "{ a b }", message: "expected line break or '}' after expression"},
 		{name: "export missing name", input: "export 1", message: "expected identifier after 'export'"},
 		{name: "import missing path", input: "import x", message: "expected string literal after 'import'"},

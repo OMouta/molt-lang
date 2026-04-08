@@ -142,6 +142,19 @@ func CloneExpr(expr ast.Expr) ast.Expr {
 			ThenBranch: CloneExpr(node.ThenBranch),
 			ElseBranch: CloneExpr(node.ElseBranch),
 		}
+	case *ast.WhileExpr:
+		return &ast.WhileExpr{
+			SourceSpan: node.SourceSpan,
+			Condition:  CloneExpr(node.Condition),
+			Body:       CloneExpr(node.Body),
+		}
+	case *ast.ForInExpr:
+		return &ast.ForInExpr{
+			SourceSpan: node.SourceSpan,
+			Binding:    cloneIdentifier(node.Binding),
+			Iterable:   CloneExpr(node.Iterable),
+			Body:       CloneExpr(node.Body),
+		}
 	case *ast.CallExpr:
 		return &ast.CallExpr{
 			SourceSpan: node.SourceSpan,
@@ -248,6 +261,15 @@ func EqualExpr(left, right ast.Expr) bool {
 			EqualExpr(l.Condition, r.Condition) &&
 			EqualExpr(l.ThenBranch, r.ThenBranch) &&
 			EqualExpr(l.ElseBranch, r.ElseBranch)
+	case *ast.WhileExpr:
+		r, ok := right.(*ast.WhileExpr)
+		return ok && EqualExpr(l.Condition, r.Condition) && EqualExpr(l.Body, r.Body)
+	case *ast.ForInExpr:
+		r, ok := right.(*ast.ForInExpr)
+		return ok &&
+			EqualExpr(l.Binding, r.Binding) &&
+			EqualExpr(l.Iterable, r.Iterable) &&
+			EqualExpr(l.Body, r.Body)
 	case *ast.CallExpr:
 		r, ok := right.(*ast.CallExpr)
 		return ok && EqualExpr(l.Callee, r.Callee) && equalExprSlices(l.Arguments, r.Arguments)
@@ -418,6 +440,32 @@ func rewriteWithRule(expr ast.Expr, rule *ast.MutationRule) (ast.Expr, bool) {
 			ThenBranch: thenBranch,
 			ElseBranch: elseBranch,
 		}, true
+	case *ast.WhileExpr:
+		condition, conditionChanged := rewriteWithRule(node.Condition, rule)
+		body, bodyChanged := rewriteWithRule(node.Body, rule)
+		if !conditionChanged && !bodyChanged {
+			return expr, false
+		}
+
+		return &ast.WhileExpr{
+			SourceSpan: node.SourceSpan,
+			Condition:  condition,
+			Body:       body,
+		}, true
+	case *ast.ForInExpr:
+		binding, bindingChanged := rewriteIdentifier(node.Binding, rule)
+		iterable, iterableChanged := rewriteWithRule(node.Iterable, rule)
+		body, bodyChanged := rewriteWithRule(node.Body, rule)
+		if !bindingChanged && !iterableChanged && !bodyChanged {
+			return expr, false
+		}
+
+		return &ast.ForInExpr{
+			SourceSpan: node.SourceSpan,
+			Binding:    binding,
+			Iterable:   iterable,
+			Body:       body,
+		}, true
 	case *ast.CallExpr:
 		callee, calleeChanged := rewriteWithRule(node.Callee, rule)
 		args, argsChanged := rewriteExprSlice(node.Arguments, rule)
@@ -556,6 +604,19 @@ func validateMutationExpr(expr ast.Expr) error {
 			return err
 		}
 		return validateMutationExpr(node.ElseBranch)
+	case *ast.WhileExpr:
+		if err := validateMutationExpr(node.Condition); err != nil {
+			return err
+		}
+		return validateMutationExpr(node.Body)
+	case *ast.ForInExpr:
+		if err := validateMutationExpr(node.Binding); err != nil {
+			return err
+		}
+		if err := validateMutationExpr(node.Iterable); err != nil {
+			return err
+		}
+		return validateMutationExpr(node.Body)
 	case *ast.CallExpr:
 		if err := validateMutationExpr(node.Callee); err != nil {
 			return err

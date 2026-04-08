@@ -127,6 +127,46 @@ func TestLexRecognizesModuleKeywords(t *testing.T) {
 	checkTokenValue(t, tokens[3], "./lib.molt")
 }
 
+func TestLexRecognizesWhileKeyword(t *testing.T) {
+	tokens, err := Lex("while.molt", "while true -> x")
+	if err != nil {
+		t.Fatalf("Lex returned error: %v", err)
+	}
+
+	want := []Kind{While, True, Arrow, Identifier, EOF}
+	if len(tokens) != len(want) {
+		t.Fatalf("token count = %d, want %d", len(tokens), len(want))
+	}
+
+	for i := range want {
+		if tokens[i].Kind != want[i] {
+			t.Fatalf("token[%d] kind = %s, want %s", i, tokens[i].Kind, want[i])
+		}
+	}
+}
+
+func TestLexRecognizesForInKeywords(t *testing.T) {
+	tokens, err := Lex("for_in.molt", "for item in xs -> item")
+	if err != nil {
+		t.Fatalf("Lex returned error: %v", err)
+	}
+
+	want := []Kind{For, Identifier, In, Identifier, Arrow, Identifier, EOF}
+	if len(tokens) != len(want) {
+		t.Fatalf("token count = %d, want %d", len(tokens), len(want))
+	}
+
+	for i := range want {
+		if tokens[i].Kind != want[i] {
+			t.Fatalf("token[%d] kind = %s, want %s", i, tokens[i].Kind, want[i])
+		}
+	}
+
+	checkTokenValue(t, tokens[1], "item")
+	checkTokenValue(t, tokens[3], "xs")
+	checkTokenValue(t, tokens[5], "item")
+}
+
 func TestLexRecognizesRecordSyntax(t *testing.T) {
 	tokens, err := Lex("record.molt", `record { name: "molt", items: [1, 2] }`)
 	if err != nil {

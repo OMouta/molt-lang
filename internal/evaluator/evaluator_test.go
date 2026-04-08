@@ -123,6 +123,95 @@ func TestEvaluateRecordFieldAccess(t *testing.T) {
 	}
 }
 
+func TestEvaluateWhileLoopsReturnNilAndUseIterationLocalScope(t *testing.T) {
+	env := runtime.NewEnvironment(nil)
+	result := mustEval(t, env, "while_loop.molt", ""+
+		"x = 0\n"+
+		"loop = while x < 3 -> {\n"+
+		"  temp = x\n"+
+		"  x = x + 1\n"+
+		"}\n"+
+		"[loop, x]",
+	)
+
+	values := expectValue[*runtime.ListValue](t, result)
+	if len(values.Elements) != 2 {
+		t.Fatalf("result length = %d, want 2", len(values.Elements))
+	}
+
+	if _, ok := values.Elements[0].(runtime.NilValue); !ok {
+		t.Fatalf("while result type = %T, want runtime.NilValue", values.Elements[0])
+	}
+
+	finalX := expectValue[*runtime.NumberValue](t, values.Elements[1])
+	if finalX.Value != 3 {
+		t.Fatalf("x = %v, want 3", finalX.Value)
+	}
+
+	if _, ok := env.Get("temp"); ok {
+		t.Fatalf("iteration-local binding leaked into outer scope")
+	}
+}
+
+func TestEvaluateWhileLoopCanUseBareBodyExpression(t *testing.T) {
+	result := mustEval(t, runtime.NewEnvironment(nil), "while_bare_body.molt", ""+
+		"x = 0\n"+
+		"while x < 2 -> x = x + 1\n"+
+		"x",
+	)
+
+	number := expectValue[*runtime.NumberValue](t, result)
+	if number.Value != 2 {
+		t.Fatalf("result = %v, want 2", number.Value)
+	}
+}
+
+func TestEvaluateForInLoopsReturnNilAndUseIterationLocalScope(t *testing.T) {
+	env := runtime.NewEnvironment(nil)
+	result := mustEval(t, env, "for_in_loop.molt", ""+
+		"total = 0\n"+
+		"loop = for item in [1, 2, 3] -> {\n"+
+		"  temp = item\n"+
+		"  total = total + item\n"+
+		"}\n"+
+		"[loop, total]",
+	)
+
+	values := expectValue[*runtime.ListValue](t, result)
+	if len(values.Elements) != 2 {
+		t.Fatalf("result length = %d, want 2", len(values.Elements))
+	}
+
+	if _, ok := values.Elements[0].(runtime.NilValue); !ok {
+		t.Fatalf("for result type = %T, want runtime.NilValue", values.Elements[0])
+	}
+
+	total := expectValue[*runtime.NumberValue](t, values.Elements[1])
+	if total.Value != 6 {
+		t.Fatalf("total = %v, want 6", total.Value)
+	}
+
+	if _, ok := env.Get("item"); ok {
+		t.Fatalf("loop binding leaked into outer scope")
+	}
+
+	if _, ok := env.Get("temp"); ok {
+		t.Fatalf("iteration-local binding leaked into outer scope")
+	}
+}
+
+func TestEvaluateForInLoopIteratesStringsByUnicodeCodePoint(t *testing.T) {
+	result := mustEval(t, runtime.NewEnvironment(nil), "for_in_string.molt", ""+
+		"chars = []\n"+
+		"for ch in \"aé\" -> push(chars, ch)\n"+
+		"chars",
+	)
+
+	if got := runtime.ShowValue(result); got != `["a", "é"]` {
+		t.Fatalf("string iteration = %q, want %q", got, `["a", "é"]`)
+	}
+}
+
 func TestEvaluateOperatorsConditionalsAndShortCircuiting(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
 	result := mustEval(t, env, "operators.molt", ""+
@@ -326,6 +415,8 @@ func TestEvaluateRuntimeErrors(t *testing.T) {
 		{name: "field access missing field", input: `record { answer: 42 }.name`, message: `record has no field "name"`},
 		{name: "undefined identifier", input: "missing", message: `undefined identifier "missing"`},
 		{name: "condition type", input: "if 1 -> 2 else -> 3", message: `if condition must be boolean, got "number"`},
+		{name: "while condition type", input: "while 1 -> 2", message: `while condition must be boolean, got "number"`},
+		{name: "for iterable type", input: "for x in 1 -> x", message: `for loop expects list or string, got "number"`},
 		{name: "user arity", input: "f = fn(x) = x\nf()", message: "expected 1 arguments but got 0"},
 		{name: "invalid eval target", input: "eval(10)", message: `eval expects code value, got "number"`},
 		{name: "invalid mutation rule", input: "~{ + -> 1 }", message: `invalid mutation rule 1: operator replacement rules must replace one operator with another`},

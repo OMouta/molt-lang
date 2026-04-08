@@ -2,9 +2,16 @@
 
 This directory contains runnable and test-verified `@molt` example programs.
 
-- `basic_mutation.molt`
-- `colors.molt`
-- `compare_worlds.molt`
+- `basic/basic_mutation.molt`
+- `basic/compare_worlds.molt`
+- `basic/records.molt`
+- `basic/variant_gallery.molt`
+  
+- `loops/for_loop.molt`
+- `loops/while_loop.molt`
+
 - `import_export/main.molt`
-- `records.molt`
-- `variant_gallery.molt`
+- `import_export/math.molt`
+
+- `others/colors.molt`
+- `others/guessing_game.molt`

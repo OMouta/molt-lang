@@ -327,6 +327,10 @@ func formatExpr(expr ast.Expr, indent int) string {
 		return "(" + formatExpr(node.Left, indent) + " " + string(node.Operator) + " " + formatExpr(node.Right, indent) + ")"
 	case *ast.ConditionalExpr:
 		return "if " + formatExpr(node.Condition, indent) + " -> " + formatExpr(node.ThenBranch, indent) + " else -> " + formatExpr(node.ElseBranch, indent)
+	case *ast.WhileExpr:
+		return "while " + formatExpr(node.Condition, indent) + " -> " + formatExpr(node.Body, indent)
+	case *ast.ForInExpr:
+		return "for " + node.Binding.Name + " in " + formatExpr(node.Iterable, indent) + " -> " + formatExpr(node.Body, indent)
 	case *ast.CallExpr:
 		args := make([]string, 0, len(node.Arguments))
 		for _, arg := range node.Arguments {

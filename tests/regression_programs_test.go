@@ -39,6 +39,18 @@ func TestRegressionPrograms(t *testing.T) {
 			wantValue:  "nil",
 			wantOutput: "[6, 7, \"code\"]\n",
 		},
+		{
+			name:       "while loop example",
+			path:       "examples/while_loop.molt",
+			wantValue:  "nil",
+			wantOutput: "3\n",
+		},
+		{
+			name:       "for loop example",
+			path:       "examples/for_loop.molt",
+			wantValue:  "nil",
+			wantOutput: "6\n[\"o\", \"k\"]\n",
+		},
 	}
 
 	for _, tc := range tests {

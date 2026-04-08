@@ -4,7 +4,7 @@ The `examples/` folder contains runnable programs that are verified by the test 
 
 ## Files
 
-[`examples/basic_mutation.molt`](../examples/basic_mutation.molt)
+[`examples/basic/basic_mutation.molt`](../examples/basic/basic_mutation.molt)
 : Basic function mutation. Prints the original and mutated results.
 
 Expected output:
@@ -14,10 +14,10 @@ Expected output:
 6
 ```
 
-[`examples/colors.molt`](../examples/colors.molt)
+[`examples/others/colors.molt`](../examples/others/colors.molt)
 : Prints the same message using several ANSI terminal colors through string escape sequences.
 
-[`examples/compare_worlds.molt`](../examples/compare_worlds.molt)
+[`examples/basic/compare_worlds.molt`](../examples/basic/compare_worlds.molt)
 : Evaluates the same quoted code before and after a mutation.
 
 Expected output:
@@ -37,7 +37,7 @@ Expected output:
 42
 ```
 
-[`examples/records.molt`](../examples/records.molt)
+[`examples/basic/records.molt`](../examples/basic/records.molt)
 : Builds a record value in normal user code, reads nested fields, and demonstrates the record helper builtins while preserving field order.
 
 Expected output:
@@ -53,7 +53,7 @@ true
 record
 ```
 
-[`examples/variant_gallery.molt`](../examples/variant_gallery.molt)
+[`examples/basic/variant_gallery.molt`](../examples/basic/variant_gallery.molt)
 : A fuller end-to-end program combining functions, quotes, mutations, lists, `push`, `type`, `len`, and `eval`.
 
 Expected output:
@@ -62,8 +62,27 @@ Expected output:
 [6, 7, "code"]
 ```
 
-[`examples/guessing_game.molt`](../examples/guessing_game.molt)
-: Interactive example using `input()` and `to_number()` to keep asking for guesses until the fixed secret number is found.
+[`examples/loops/while_loop.molt`](../examples/loops/while_loop.molt)
+: Increments a counter with a `while` loop until the condition becomes false.
+
+Expected output:
+
+```txt
+3
+```
+
+[`examples/loops/for_loop.molt`](../examples/loops/for_loop.molt)
+: Iterates over a list and a string with `for ... in ...`, showing accumulation and character collection.
+
+Expected output:
+
+```txt
+6
+["o", "k"]
+```
+
+[`examples/others/guessing_game.molt`](../examples/others/guessing_game.molt)
+: Interactive example using `while`, `input()`, and `to_number()` to keep asking for guesses until the fixed secret number is found.
 
 Example session:
 
@@ -82,11 +101,13 @@ you got it!
 ## Running Examples
 
 ```powershell
-go run ./cmd/molt ./examples/basic_mutation.molt
-go run ./cmd/molt ./examples/colors.molt
-go run ./cmd/molt ./examples/compare_worlds.molt
+go run ./cmd/molt ./examples/basic/basic_mutation.molt
+go run ./cmd/molt ./examples/others/colors.molt
+go run ./cmd/molt ./examples/basic/compare_worlds.molt
 go run ./cmd/molt ./examples/import_export/main.molt
-go run ./cmd/molt ./examples/records.molt
-go run ./cmd/molt ./examples/variant_gallery.molt
-go run ./cmd/molt ./examples/guessing_game.molt
+go run ./cmd/molt ./examples/basic/records.molt
+go run ./cmd/molt ./examples/basic/variant_gallery.molt
+go run ./cmd/molt ./examples/loops/while_loop.molt
+go run ./cmd/molt ./examples/loops/for_loop.molt
+go run ./cmd/molt ./examples/others/guessing_game.molt
 ```

@@ -18,6 +18,9 @@ const (
 	Fn     Kind = "fn"
 	If     Kind = "if"
 	Else   Kind = "else"
+	While  Kind = "while"
+	For    Kind = "for"
+	In     Kind = "in"
 	Export Kind = "export"
 	Import Kind = "import"
 	Record Kind = "record"
@@ -76,6 +79,9 @@ var keywords = map[string]Kind{
 	"fn":     Fn,
 	"if":     If,
 	"else":   Else,
+	"while":  While,
+	"for":    For,
+	"in":     In,
 	"export": Export,
 	"import": Import,
 	"record": Record,

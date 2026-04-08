@@ -89,6 +89,21 @@ Conditionals:
 if cond -> expr else -> expr
 ```
 
+Loops:
+
+```txt
+while cond -> expr
+while cond -> {
+  step1
+  step2
+}
+for item in items -> expr
+for ch in "text" -> {
+  step1
+  step2
+}
+```
+
 Quoted-argument sugar:
 
 ```txt
@@ -118,6 +133,12 @@ and or not
 ```
 
 The language uses strict booleans. `if`, `and`, `or`, and `not` require real boolean values.
+
+`while` also requires a real boolean condition. A `while` expression returns `nil` when the loop finishes.
+
+Each `while` iteration runs in a fresh child scope rooted in the surrounding environment. Assignments can still update outer bindings, but new iteration-local bindings do not leak after the iteration ends.
+
+`for` currently iterates over lists and strings. String iteration walks Unicode code points and yields one-character strings. A `for` expression also returns `nil`, and each iteration uses the same fresh child-scope model as `while`: outer bindings can be updated, but the loop binding and any new locals do not leak after the iteration ends.
 
 ## Quote And Eval
 
@@ -297,6 +318,8 @@ The runtime reports precise diagnostics for:
 - import failures
 - duplicate record field names
 - invalid record field access
+- invalid while conditions
+- invalid for loop iterables
 - invalid mutation targets
 - invalid eval targets
 - invalid call targets
