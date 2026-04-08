@@ -1,0 +1,5 @@
+name = "molt-lang"
+compatibility_date = "2025-04-08"
+
+[assets]
+directory = "./docs/.vitepress/dist"
