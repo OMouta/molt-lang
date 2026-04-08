@@ -4,6 +4,8 @@ This directory contains runnable and test-verified `@molt` example programs.
 
 - `basic/basic_mutation.molt`
 - `basic/compare_worlds.molt`
+- `basic/error_values.molt`
+- `basic/throw_error.molt`
 - `basic/records.molt`
 - `basic/variant_gallery.molt`
   

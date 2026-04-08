@@ -11,6 +11,7 @@ func TestAllReturnsCanonicalTypeNames(t *testing.T) {
 		"nil",
 		"list",
 		"record",
+		"error",
 		"function",
 		"native-function",
 		"code",

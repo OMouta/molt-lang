@@ -1,0 +1,7 @@
+err = error("missing file", record { path: "note.txt" })
+
+print(type(err))
+print(err.message)
+print(err.data.path)
+print(keys(err))
+print(show(err))

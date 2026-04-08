@@ -36,6 +36,11 @@ func TestShowValueFormatsPrimitiveAndCompactListValues(t *testing.T) {
 	if got := ShowValue(record); got != `record { name: "molt", ok: true }` {
 		t.Fatalf("record = %q, want %q", got, `record { name: "molt", ok: true }`)
 	}
+
+	errValue := NewErrorValue("boom", &NumberValue{Value: 42}, true)
+	if got := ShowValue(errValue); got != `error { message: "boom", data: 42 }` {
+		t.Fatalf("error = %q, want %q", got, `error { message: "boom", data: 42 }`)
+	}
 }
 
 func TestShowValueFormatsFunctionsCodeMutationsAndNativeFunctions(t *testing.T) {

@@ -34,6 +34,12 @@ func TestRegressionPrograms(t *testing.T) {
 			wantOutput: "record { name: \"molt\", stats: record { runs: 3 } }\nmolt\n3\n[\"name\", \"stats\"]\n[\"molt\", record { runs: 3 }]\ntrue\n2\nrecord\nAge not found in profile.\n",
 		},
 		{
+			name:       "error values example",
+			path:       "examples/basic/error_values.molt",
+			wantValue:  "nil",
+			wantOutput: "error\nmissing file\nnote.txt\n[\"message\", \"data\"]\nerror {\n  message: \"missing file\",\n  data: record { path: \"note.txt\" }\n}\n",
+		},
+		{
 			name:       "variant gallery example",
 			path:       "examples/basic/variant_gallery.molt",
 			wantValue:  "nil",

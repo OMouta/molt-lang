@@ -31,6 +31,8 @@ func formatValue(value Value, indent int) string {
 		return formatListValue(v, indent)
 	case *RecordValue:
 		return formatRecordValue(v, indent)
+	case *ErrorValue:
+		return formatErrorValue(v, indent)
 	case *UserFunctionValue:
 		return formatFunctionValue(v, indent)
 	case *NativeFunctionValue:
@@ -119,6 +121,33 @@ func formatRecordValue(record *RecordValue, indent int) string {
 	lines := []string{"record {"}
 	for i := range parts {
 		part := record.Fields[i].Name + ": " + formatValue(record.Fields[i].Value, 0)
+		line := indentString(indent+1) + indentMultiline(part, indent+1)
+		if i < len(parts)-1 {
+			line += ","
+		}
+		lines = append(lines, line)
+	}
+	lines = append(lines, indentString(indent)+"}")
+	return strings.Join(lines, "\n")
+}
+
+func formatErrorValue(errValue *ErrorValue, indent int) string {
+	if errValue == nil {
+		return `error { message: "" }`
+	}
+
+	parts := []string{`message: ` + strconv.Quote(errValue.Message)}
+	if errValue.HasData {
+		parts = append(parts, "data: "+formatValue(errValue.Data, indent+1))
+	}
+
+	compact := "error { " + strings.Join(parts, ", ") + " }"
+	if !strings.Contains(compact, "\n") && len(compact) <= compactDisplayLimit {
+		return compact
+	}
+
+	lines := []string{"error {"}
+	for i, part := range parts {
 		line := indentString(indent+1) + indentMultiline(part, indent+1)
 		if i < len(parts)-1 {
 			line += ","

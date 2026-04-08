@@ -53,6 +53,32 @@ true
 record
 ```
 
+[`examples/basic/error_values.molt`](../examples/basic/error_values.molt)
+: Constructs first-class error values, inspects their fields, and shows their stable display form without aborting execution.
+
+Expected output:
+
+```txt
+error
+missing file
+note.txt
+["message", "data"]
+error {
+  message: "missing file",
+  data: record { path: "note.txt" }
+}
+```
+
+[`examples/basic/throw_error.molt`](../examples/basic/throw_error.molt)
+: Raises an error value intentionally with `throw(...)`, demonstrating how uncaught throws turn into runtime diagnostics with preserved throw-site spans and error-data notes.
+
+Expected diagnostic excerpt:
+
+```txt
+runtime error: config file not found
+note: error data: record { path: "settings.json" }
+```
+
 [`examples/basic/variant_gallery.molt`](../examples/basic/variant_gallery.molt)
 : A fuller end-to-end program combining functions, quotes, mutations, lists, `push`, `type`, `len`, and `eval`.
 
@@ -115,6 +141,8 @@ go run ./cmd/molt ./examples/others/colors.molt
 go run ./cmd/molt ./examples/basic/compare_worlds.molt
 go run ./cmd/molt ./examples/import_export/main.molt
 go run ./cmd/molt ./examples/basic/records.molt
+go run ./cmd/molt ./examples/basic/error_values.molt
+go run ./cmd/molt ./examples/basic/throw_error.molt
 go run ./cmd/molt ./examples/basic/variant_gallery.molt
 go run ./cmd/molt ./examples/loops/while_loop.molt
 go run ./cmd/molt ./examples/loops/for_loop.molt

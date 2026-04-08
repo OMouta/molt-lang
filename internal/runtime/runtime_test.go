@@ -26,6 +26,7 @@ func TestValueTypesCoverEveryRuntimeValueKind(t *testing.T) {
 		Nil,
 		&ListValue{Elements: []Value{&NumberValue{Value: 1}}},
 		NewRecordValue([]RecordField{{Name: "answer", Value: &NumberValue{Value: 42}}}),
+		NewErrorValue("boom", &NumberValue{Value: 42}, true),
 		&UserFunctionValue{Name: "double", Parameters: []string{"x"}, Body: body, Env: env},
 		native,
 		&CodeValue{Body: body, Env: env},
@@ -45,6 +46,7 @@ func TestValueTypesCoverEveryRuntimeValueKind(t *testing.T) {
 		"nil",
 		"list",
 		"record",
+		"error",
 		"function",
 		"native-function",
 		"code",
@@ -72,6 +74,40 @@ func TestValueTypesCoverEveryRuntimeValueKind(t *testing.T) {
 	count := expectValue[*NumberValue](t, result)
 	if count.Value != 2 {
 		t.Fatalf("native call result = %v, want 2", count.Value)
+	}
+}
+
+func TestErrorValueExposesStructuredFields(t *testing.T) {
+	value := NewErrorValue("boom", &NumberValue{Value: 7}, true)
+
+	if got := value.TypeName(); got != "error" {
+		t.Fatalf("type = %q, want %q", got, "error")
+	}
+
+	if got := value.Len(); got != 2 {
+		t.Fatalf("len = %d, want 2", got)
+	}
+
+	if got := value.Keys(); len(got) != 2 || got[0] != "message" || got[1] != "data" {
+		t.Fatalf("keys = %v, want [message data]", got)
+	}
+
+	message, ok := value.GetField("message")
+	if !ok {
+		t.Fatalf("message field lookup failed")
+	}
+
+	if got := expectValue[*StringValue](t, message); got.Value != "boom" {
+		t.Fatalf("message = %q, want %q", got.Value, "boom")
+	}
+
+	data, ok := value.GetField("data")
+	if !ok {
+		t.Fatalf("data field lookup failed")
+	}
+
+	if got := expectValue[*NumberValue](t, data); got.Value != 7 {
+		t.Fatalf("data = %v, want 7", got.Value)
 	}
 }
 

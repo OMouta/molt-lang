@@ -27,6 +27,7 @@ The current runtime includes:
 - `nil`
 - `list`
 - `record`
+- `error`
 - `function`
 - `native-function`
 - `code`
@@ -81,6 +82,8 @@ record {}
 profile.name
 profile.stats.runs
 profile["name"]
+err.message
+err["data"]
 ```
 
 Conditionals:
@@ -256,6 +259,12 @@ Supported matching forms:
 `values(record)`
 : Return a list of record field values in the same order as `keys(record)`.
 
+`error(message)` / `error(message, data)`
+: Build a first-class error value. Error values have type `"error"`, display as `error { ... }`, and expose `message` plus optional `data` fields through normal field access and record-style helpers such as `contains`, `keys`, `values`, and `len`.
+
+`throw(err)`
+: Raise an error value as an actual runtime failure. `throw(...)` requires a value of type `"error"`; uncaught throws become runtime diagnostics at the `throw(...)` call site, and thrown values with `data` add a diagnostic note showing that payload.
+
 `range(end)` / `range(start, end)`
 : Build an ascending list of integers with an exclusive end bound.
 
@@ -332,5 +341,7 @@ The runtime reports precise diagnostics for:
 - invalid operand types
 - invalid list indices
 - parse failures
+
+Error values are ordinary runtime data. They can be stored, inspected, and passed around in user code. `throw(error(...))` is what turns one into an aborting runtime failure. CLI diagnostics are separate: they are what the evaluator reports when execution actually aborts.
 
 CLI diagnostics include file path, line, column, source excerpts, and caret markers.

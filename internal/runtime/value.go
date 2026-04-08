@@ -125,6 +125,77 @@ func (v *RecordValue) Values() []Value {
 	return values
 }
 
+type ErrorValue struct {
+	Message string
+	Data    Value
+	HasData bool
+}
+
+func NewErrorValue(message string, data Value, hasData bool) *ErrorValue {
+	return &ErrorValue{
+		Message: message,
+		Data:    data,
+		HasData: hasData,
+	}
+}
+
+func (v *ErrorValue) TypeName() string { return typenames.Error }
+
+func (v *ErrorValue) GetField(name string) (Value, bool) {
+	if v == nil {
+		return nil, false
+	}
+
+	switch name {
+	case "message":
+		return &StringValue{Value: v.Message}, true
+	case "data":
+		if !v.HasData {
+			return nil, false
+		}
+		return v.Data, true
+	default:
+		return nil, false
+	}
+}
+
+func (v *ErrorValue) Len() int {
+	if v == nil {
+		return 0
+	}
+
+	if v.HasData {
+		return 2
+	}
+
+	return 1
+}
+
+func (v *ErrorValue) Keys() []string {
+	if v == nil {
+		return nil
+	}
+
+	if v.HasData {
+		return []string{"message", "data"}
+	}
+
+	return []string{"message"}
+}
+
+func (v *ErrorValue) Values() []Value {
+	if v == nil {
+		return nil
+	}
+
+	values := []Value{&StringValue{Value: v.Message}}
+	if v.HasData {
+		values = append(values, v.Data)
+	}
+
+	return values
+}
+
 type UserFunctionValue struct {
 	Name       string
 	Parameters []string

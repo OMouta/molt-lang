@@ -123,6 +123,99 @@ func TestEvaluateRecordFieldAccess(t *testing.T) {
 	}
 }
 
+func TestEvaluateErrorValuesExposeFieldsAndHelperBuiltins(t *testing.T) {
+	result := mustEval(t, runtime.NewEnvironment(nil), "error_values.molt", ""+
+		"err = error(\"missing file\", record { path: \"note.txt\" })\n"+
+		"[\n"+
+		"  type(err),\n"+
+		"  err.message,\n"+
+		"  err.data.path,\n"+
+		"  err[\"message\"],\n"+
+		"  contains(err, \"data\"),\n"+
+		"  keys(err),\n"+
+		"  values(err),\n"+
+		"  len(err),\n"+
+		"  show(err)\n"+
+		"]",
+	)
+
+	if got := runtime.ShowValue(result); got != "[\n  \"error\",\n  \"missing file\",\n  \"note.txt\",\n  \"missing file\",\n  true,\n  [\"message\", \"data\"],\n  [\"missing file\", record { path: \"note.txt\" }],\n  2,\n  \"error {\\n  message: \\\"missing file\\\",\\n  data: record { path: \\\"note.txt\\\" }\\n}\"\n]" {
+		t.Fatalf("result = %q", got)
+	}
+}
+
+func TestEvaluateThrowRaisesRuntimeDiagnosticWithDataNote(t *testing.T) {
+	_, err := evalStringWithEvaluator(nil, runtime.NewEnvironment(nil), "throw_data.molt", `throw(error("boom", record { code: 7 }))`)
+	runtimeErr := expectRuntimeError(t, err)
+
+	diag := runtimeErr.Diagnostic()
+	if diag.Message != "boom" {
+		t.Fatalf("message = %q, want %q", diag.Message, "boom")
+	}
+
+	if diag.Span.Start.Line != 1 || diag.Span.Start.Column != 1 {
+		t.Fatalf("throw span start = %d:%d, want 1:1", diag.Span.Start.Line, diag.Span.Start.Column)
+	}
+
+	if len(diag.Notes) != 1 {
+		t.Fatalf("note count = %d, want 1", len(diag.Notes))
+	}
+
+	if diag.Notes[0].Message != `error data: record { code: 7 }` {
+		t.Fatalf("note = %q, want %q", diag.Notes[0].Message, `error data: record { code: 7 }`)
+	}
+}
+
+func TestEvaluateThrowPreservesSourceSpanAcrossFunctionAndEvalBoundaries(t *testing.T) {
+	tests := []struct {
+		name   string
+		path   string
+		input  string
+		line   int
+		column int
+	}{
+		{
+			name: "function body",
+			path: "throw_function.molt",
+			input: "" +
+				"fn fail() = {\n" +
+				"  1\n" +
+				"  throw(error(\"boom\"))\n" +
+				"}\n" +
+				"fail()",
+			line:   3,
+			column: 3,
+		},
+		{
+			name: "eval body",
+			path: "throw_eval.molt",
+			input: "" +
+				"code = @{\n" +
+				"  throw(error(\"boom\"))\n" +
+				"}\n" +
+				"eval(code)",
+			line:   2,
+			column: 3,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := evalStringWithEvaluator(nil, runtime.NewEnvironment(nil), tc.path, tc.input)
+			runtimeErr := expectRuntimeError(t, err)
+
+			diag := runtimeErr.Diagnostic()
+			if diag.Message != "boom" {
+				t.Fatalf("message = %q, want %q", diag.Message, "boom")
+			}
+
+			if diag.Span.Start.Line != tc.line || diag.Span.Start.Column != tc.column {
+				t.Fatalf("throw span start = %d:%d, want %d:%d", diag.Span.Start.Line, diag.Span.Start.Column, tc.line, tc.column)
+			}
+		})
+	}
+}
+
 func TestEvaluateWhileLoopsReturnNilAndUseIterationLocalScope(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
 	result := mustEval(t, env, "while_loop.molt", ""+
@@ -454,8 +547,11 @@ func TestEvaluateRuntimeErrors(t *testing.T) {
 		{name: "invalid eval target", input: "eval(10)", message: `eval expects code value, got "number"`},
 		{name: "invalid mutation rule", input: "~{ + -> 1 }", message: `invalid mutation rule 1: operator replacement rules must replace one operator with another`},
 		{name: "invalid mutation operand", input: "code = @{ 1 }\ncode ~ 1", message: `expected mutation value, got "number"`},
-		{name: "invalid len target", input: "len(1)", message: `len expects list, string, or record, got "number"`},
+		{name: "invalid len target", input: "len(1)", message: `len expects list, string, record, or error, got "number"`},
 		{name: "invalid push target", input: "push(1, 2)", message: `push expects list as first argument, got "number"`},
+		{name: "invalid error arity", input: "error()", message: "error expects 1 or 2 arguments but got 0"},
+		{name: "invalid error message type", input: "error(1)", message: `error expects string message as first argument, got "number"`},
+		{name: "invalid throw target", input: "throw(1)", message: `throw expects error value, got "number"`},
 		{name: "invalid split target", input: `split(1, ",")`, message: `split expects string as first argument, got "number"`},
 		{name: "invalid join element", input: `join([1], ",")`, message: `join expects list of strings, but element 0 has type "number"`},
 		{name: "invalid trim target", input: `trim(1)`, message: `trim expects string, got "number"`},
@@ -463,11 +559,12 @@ func TestEvaluateRuntimeErrors(t *testing.T) {
 		{name: "invalid replace text", input: `replace(1, "a", "b")`, message: `replace expects string as first argument, got "number"`},
 		{name: "invalid replace old", input: `replace("abc", 1, "b")`, message: `replace expects string as second argument, got "number"`},
 		{name: "invalid replace new", input: `replace("abc", "a", 1)`, message: `replace expects string as third argument, got "number"`},
-		{name: "invalid contains text", input: `contains(1, "a")`, message: `contains expects string or record as first argument, got "number"`},
+		{name: "invalid contains text", input: `contains(1, "a")`, message: `contains expects string, record, or error as first argument, got "number"`},
 		{name: "invalid contains needle", input: `contains("abc", 1)`, message: `contains expects string as second argument, got "number"`},
 		{name: "invalid contains record key", input: `contains(record { answer: 42 }, 1)`, message: `contains expects string key as second argument for records, got "number"`},
-		{name: "invalid keys target", input: `keys(1)`, message: `keys expects record, got "number"`},
-		{name: "invalid values target", input: `values(1)`, message: `values expects record, got "number"`},
+		{name: "invalid contains error key", input: `contains(error("boom"), 1)`, message: `contains expects string key as second argument for errors, got "number"`},
+		{name: "invalid keys target", input: `keys(1)`, message: `keys expects record or error, got "number"`},
+		{name: "invalid values target", input: `values(1)`, message: `values expects record or error, got "number"`},
 		{name: "invalid range arity", input: `range(1, 2, 3)`, message: "range expects 1 or 2 arguments but got 3"},
 		{name: "invalid range integer", input: `range(1.5)`, message: "range expects integer at argument 1, got 1.5"},
 		{name: "invalid map callback", input: `map([1], 1)`, message: `map expects function as second argument, got "number"`},

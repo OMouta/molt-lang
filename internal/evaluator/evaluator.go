@@ -52,6 +52,19 @@ func (s loopControlSignal) Error() string {
 	return string(s.kind)
 }
 
+type raisedErrorSignal struct {
+	value *runtime.ErrorValue
+	span  source.Span
+}
+
+func (s raisedErrorSignal) Error() string {
+	if s.value == nil {
+		return "throw"
+	}
+
+	return s.value.Message
+}
+
 func New(output io.Writer) *Evaluator {
 	return &Evaluator{output: output}
 }
@@ -99,7 +112,7 @@ func (e *Evaluator) EvalProgram(program *ast.Program, env *runtime.Environment) 
 	for _, expr := range program.Expressions {
 		value, err := e.evalExpr(env, expr)
 		if err != nil {
-			return nil, e.wrapLoopControlError(err)
+			return nil, e.wrapControlFlowError(err)
 		}
 
 		result = value
@@ -115,7 +128,7 @@ func (e *Evaluator) EvalExpr(expr ast.Expr, env *runtime.Environment) (runtime.V
 
 	value, err := e.evalExpr(env, expr)
 	if err != nil {
-		return nil, e.wrapLoopControlError(err)
+		return nil, e.wrapControlFlowError(err)
 	}
 
 	return value, nil
@@ -414,6 +427,20 @@ func (e *Evaluator) evalIndex(env *runtime.Environment, expr *ast.IndexExpr) (ru
 		return value, nil
 	}
 
+	if errValue, ok := target.(*runtime.ErrorValue); ok {
+		name, ok := indexValue.(*runtime.StringValue)
+		if !ok {
+			return nil, e.runtimeError(expr.Index, fmt.Sprintf("error index must be a string, got %q", indexValue.TypeName()))
+		}
+
+		value, ok := errValue.GetField(name.Value)
+		if !ok {
+			return nil, e.runtimeError(expr.Index, fmt.Sprintf("error has no field %q", name.Value))
+		}
+
+		return value, nil
+	}
+
 	return nil, e.runtimeError(expr, fmt.Sprintf("cannot index value of type %q", target.TypeName()))
 }
 
@@ -423,17 +450,25 @@ func (e *Evaluator) evalFieldAccess(env *runtime.Environment, expr *ast.FieldAcc
 		return nil, err
 	}
 
-	record, ok := target.(*runtime.RecordValue)
-	if !ok {
-		return nil, e.runtimeError(expr, fmt.Sprintf("cannot access field %q on value of type %q", expr.Name.Name, target.TypeName()))
+	if record, ok := target.(*runtime.RecordValue); ok {
+		value, ok := record.GetField(expr.Name.Name)
+		if !ok {
+			return nil, e.runtimeError(expr.Name, fmt.Sprintf("record has no field %q", expr.Name.Name))
+		}
+
+		return value, nil
 	}
 
-	value, ok := record.GetField(expr.Name.Name)
-	if !ok {
-		return nil, e.runtimeError(expr.Name, fmt.Sprintf("record has no field %q", expr.Name.Name))
+	if errValue, ok := target.(*runtime.ErrorValue); ok {
+		value, ok := errValue.GetField(expr.Name.Name)
+		if !ok {
+			return nil, e.runtimeError(expr.Name, fmt.Sprintf("error has no field %q", expr.Name.Name))
+		}
+
+		return value, nil
 	}
 
-	return value, nil
+	return nil, e.runtimeError(expr, fmt.Sprintf("cannot access field %q on value of type %q", expr.Name.Name, target.TypeName()))
 }
 
 func (e *Evaluator) evalUnary(env *runtime.Environment, expr *ast.UnaryExpr) (runtime.Value, error) {
@@ -825,6 +860,32 @@ func (e *Evaluator) wrapLoopControlError(err error) error {
 	return diagnostic.NewRuntimeError(fmt.Sprintf("%s is only allowed inside loops", signal.kind), signal.span)
 }
 
+func (e *Evaluator) wrapRaisedError(err error) error {
+	raised, ok := asRaisedErrorSignal(err)
+	if !ok {
+		return err
+	}
+
+	notes := []diagnostic.Note(nil)
+	if raised.value != nil && raised.value.HasData {
+		notes = append(notes, diagnostic.Note{
+			Message: "error data: " + runtime.ShowValue(raised.value.Data),
+		})
+	}
+
+	message := "thrown error"
+	if raised.value != nil {
+		message = raised.value.Message
+	}
+
+	return diagnostic.NewRuntimeError(message, raised.span, notes...)
+}
+
+func (e *Evaluator) wrapControlFlowError(err error) error {
+	err = e.wrapLoopControlError(err)
+	return e.wrapRaisedError(err)
+}
+
 func (e *Evaluator) prepareEnvironment(env *runtime.Environment) *runtime.Environment {
 	if env == nil {
 		env = runtime.NewEnvironment(nil)
@@ -876,6 +937,22 @@ func (e *Evaluator) ensureBuiltins(env *runtime.Environment) {
 			FunctionName: "type",
 			Arity:        1,
 			Impl:         typeBuiltin,
+		})
+	}
+
+	if _, ok := env.Get("error"); !ok {
+		env.Define("error", &runtime.NativeFunctionValue{
+			FunctionName: "error",
+			Arity:        -1,
+			Impl:         errorBuiltin,
+		})
+	}
+
+	if _, ok := env.Get("throw"); !ok {
+		env.Define("throw", &runtime.NativeFunctionValue{
+			FunctionName: "throw",
+			Arity:        1,
+			Impl:         throwBuiltin,
 		})
 	}
 
@@ -1099,6 +1176,44 @@ func typeBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value,
 	return &runtime.StringValue{Value: args[0].TypeName()}, nil
 }
 
+func errorBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	if len(args) != 1 && len(args) != 2 {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("error expects 1 or 2 arguments but got %d", len(args)),
+			ctx.CallSpan,
+		)
+	}
+
+	message, ok := args[0].(*runtime.StringValue)
+	if !ok {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("error expects string message as first argument, got %q", args[0].TypeName()),
+			ctx.CallSpan,
+		)
+	}
+
+	if len(args) == 1 {
+		return runtime.NewErrorValue(message.Value, nil, false), nil
+	}
+
+	return runtime.NewErrorValue(message.Value, args[1], true), nil
+}
+
+func throwBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
+	errValue, ok := args[0].(*runtime.ErrorValue)
+	if !ok {
+		return nil, diagnostic.NewRuntimeError(
+			fmt.Sprintf("throw expects error value, got %q", args[0].TypeName()),
+			ctx.CallSpan,
+		)
+	}
+
+	return nil, raisedErrorSignal{
+		value: errValue,
+		span:  ctx.CallSpan,
+	}
+}
+
 func argsBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
 	values := make([]runtime.Value, 0, len(ctx.Arguments))
 	for _, arg := range ctx.Arguments {
@@ -1116,9 +1231,11 @@ func lenBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, 
 		return &runtime.NumberValue{Value: float64(len([]rune(value.Value)))}, nil
 	case *runtime.RecordValue:
 		return &runtime.NumberValue{Value: float64(value.Len())}, nil
+	case *runtime.ErrorValue:
+		return &runtime.NumberValue{Value: float64(value.Len())}, nil
 	default:
 		return nil, diagnostic.NewRuntimeError(
-			fmt.Sprintf("len expects list, string, or record, got %q", args[0].TypeName()),
+			fmt.Sprintf("len expects list, string, record, or error, got %q", args[0].TypeName()),
 			ctx.CallSpan,
 		)
 	}
@@ -1286,24 +1403,39 @@ func containsBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Va
 
 		_, exists := value.GetField(key.Value)
 		return &runtime.BooleanValue{Value: exists}, nil
+	case *runtime.ErrorValue:
+		key, ok := args[1].(*runtime.StringValue)
+		if !ok {
+			return nil, diagnostic.NewRuntimeError(
+				fmt.Sprintf("contains expects string key as second argument for errors, got %q", args[1].TypeName()),
+				ctx.CallSpan,
+			)
+		}
+
+		_, exists := value.GetField(key.Value)
+		return &runtime.BooleanValue{Value: exists}, nil
 	default:
 		return nil, diagnostic.NewRuntimeError(
-			fmt.Sprintf("contains expects string or record as first argument, got %q", args[0].TypeName()),
+			fmt.Sprintf("contains expects string, record, or error as first argument, got %q", args[0].TypeName()),
 			ctx.CallSpan,
 		)
 	}
 }
 
 func keysBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
-	record, ok := args[0].(*runtime.RecordValue)
-	if !ok {
+	var keys []string
+	switch value := args[0].(type) {
+	case *runtime.RecordValue:
+		keys = value.Keys()
+	case *runtime.ErrorValue:
+		keys = value.Keys()
+	default:
 		return nil, diagnostic.NewRuntimeError(
-			fmt.Sprintf("keys expects record, got %q", args[0].TypeName()),
+			fmt.Sprintf("keys expects record or error, got %q", args[0].TypeName()),
 			ctx.CallSpan,
 		)
 	}
 
-	keys := record.Keys()
 	elements := make([]runtime.Value, 0, len(keys))
 	for _, key := range keys {
 		elements = append(elements, &runtime.StringValue{Value: key})
@@ -1313,15 +1445,17 @@ func keysBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value,
 }
 
 func valuesBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
-	record, ok := args[0].(*runtime.RecordValue)
-	if !ok {
+	switch value := args[0].(type) {
+	case *runtime.RecordValue:
+		return &runtime.ListValue{Elements: value.Values()}, nil
+	case *runtime.ErrorValue:
+		return &runtime.ListValue{Elements: value.Values()}, nil
+	default:
 		return nil, diagnostic.NewRuntimeError(
-			fmt.Sprintf("values expects record, got %q", args[0].TypeName()),
+			fmt.Sprintf("values expects record or error, got %q", args[0].TypeName()),
 			ctx.CallSpan,
 		)
 	}
-
-	return &runtime.ListValue{Elements: record.Values()}, nil
 }
 
 func rangeBuiltin(ctx *runtime.CallContext, args []runtime.Value) (runtime.Value, error) {
@@ -1775,6 +1909,9 @@ func valuesEqual(left, right runtime.Value) bool {
 	case *runtime.RecordValue:
 		r, ok := right.(*runtime.RecordValue)
 		return ok && l == r
+	case *runtime.ErrorValue:
+		r, ok := right.(*runtime.ErrorValue)
+		return ok && l == r
 	case *runtime.UserFunctionValue:
 		r, ok := right.(*runtime.UserFunctionValue)
 		return ok && l == r
@@ -1798,6 +1935,11 @@ func arityMessage(expected, got int) string {
 
 func asLoopControlSignal(err error) (loopControlSignal, bool) {
 	signal, ok := err.(loopControlSignal)
+	return signal, ok
+}
+
+func asRaisedErrorSignal(err error) (raisedErrorSignal, bool) {
+	signal, ok := err.(raisedErrorSignal)
 	return signal, ok
 }
 

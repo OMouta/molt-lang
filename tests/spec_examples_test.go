@@ -75,6 +75,14 @@ func TestSpecExamples(t *testing.T) {
 		expectShownValue(t, value, `[2, true, ["name", "nested"], ["molt", record { ok: true }]]`)
 	})
 
+	t.Run("error values", func(t *testing.T) {
+		value, _ := mustExecuteProgram(t, "spec_error_values.molt", ""+
+			"err = error(\"missing file\", record { path: \"note.txt\" })\n"+
+			"[type(err), err.message, err.data.path]",
+		)
+		expectShownValue(t, value, `["error", "missing file", "note.txt"]`)
+	})
+
 	t.Run("while loop", func(t *testing.T) {
 		value, _ := mustExecuteProgram(t, "spec_while_loop.molt", ""+
 			"x = 0\n"+

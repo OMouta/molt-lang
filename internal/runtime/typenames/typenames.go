@@ -7,6 +7,7 @@ const (
 	Nil            = "nil"
 	List           = "list"
 	Record         = "record"
+	Error          = "error"
 	Function       = "function"
 	NativeFunction = "native-function"
 	Code           = "code"
@@ -21,6 +22,7 @@ func All() []string {
 		Nil,
 		List,
 		Record,
+		Error,
 		Function,
 		NativeFunction,
 		Code,

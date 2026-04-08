@@ -85,6 +85,42 @@ func TestRunReportsRuntimeDiagnostics(t *testing.T) {
 	}
 }
 
+func TestRunReportsThrownErrorDiagnosticsAtThrowSite(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "throw_error.molt")
+	writeTestFile(t, path, ""+
+		"fn fail() = {\n"+
+		"  throw(error(\"boom\", record { code: 7 }))\n"+
+		"}\n"+
+		"fail()\n",
+	)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	exit := run([]string{path}, strings.NewReader(""), &stdout, &stderr)
+
+	if exit != 4 {
+		t.Fatalf("exit code = %d, want 4", exit)
+	}
+
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+
+	output := stderr.String()
+	if !strings.Contains(output, path+":2:3: runtime error: boom") {
+		t.Fatalf("stderr = %q, want thrown diagnostic header", output)
+	}
+
+	if !strings.Contains(output, "2 |   throw(error(\"boom\", record { code: 7 }))") {
+		t.Fatalf("stderr = %q, want throw-site snippet", output)
+	}
+
+	if !strings.Contains(output, `note: error data: record { code: 7 }`) {
+		t.Fatalf("stderr = %q, want thrown data note", output)
+	}
+}
+
 func TestRunRejectsInvalidUsageAndMissingFiles(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -365,7 +401,7 @@ func TestRunREPLSupportsMultilineInputAndContinuesAfterErrors(t *testing.T) {
 	}
 
 	errOut := stderr.String()
-	if !strings.Contains(errOut, `<repl>:1:1: runtime error: len expects list, string, or record, got "number"`) {
+	if !strings.Contains(errOut, `<repl>:1:1: runtime error: len expects list, string, record, or error, got "number"`) {
 		t.Fatalf("stderr = %q, want runtime diagnostic", errOut)
 	}
 
