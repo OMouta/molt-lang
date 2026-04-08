@@ -66,4 +66,4 @@ Output is written to `docs/.vitepress/dist/`.
 
 ## Deployment
 
-The docs are deployed automatically to GitHub Pages on every push to `main` via `.github/workflows/docs.yml`. The workflow installs Go, runs docgen, installs Node, builds VitePress, and deploys the result.
+The docs are deployed automatically to **Cloudflare Pages** on every push to `main` via `.github/workflows/docs.yml`. The workflow installs Go, runs docgen, installs Node, builds VitePress, and deploys the `docs/.vitepress/dist` output.

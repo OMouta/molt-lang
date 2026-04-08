@@ -5,28 +5,20 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# One deployment at a time; cancel any in-progress run for the same branch.
 concurrency:
   group: pages
   cancel-in-progress: true
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-
     steps:
       - uses: actions/checkout@v4
 
-      # Go is needed to run cmd/docgen
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -34,7 +26,6 @@ jobs:
       - name: Generate docs (builtins + examples)
         run: go run ./cmd/docgen
 
-      # Node is needed for VitePress
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -49,13 +40,11 @@ jobs:
         run: npm run docs:build
         working-directory: docs
 
-      - uses: actions/configure-pages@v4
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
         with:
-          path: docs/.vitepress/dist
-
-      - name: Deploy to GitHub Pages
-        id: deploy
-        uses: actions/deploy-pages@v4
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: molt-lang
+          directory: docs/.vitepress/dist
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
