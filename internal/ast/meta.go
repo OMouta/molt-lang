@@ -18,6 +18,14 @@ type UnquoteExpr struct {
 func (n *UnquoteExpr) Span() source.Span { return n.SourceSpan }
 func (*UnquoteExpr) exprNode()           {}
 
+type SpliceExpr struct {
+	SourceSpan source.Span
+	Expression Expr
+}
+
+func (n *SpliceExpr) Span() source.Span { return n.SourceSpan }
+func (*SpliceExpr) exprNode()           {}
+
 type MutationLiteralExpr struct {
 	SourceSpan source.Span
 	Rules      []*MutationRule

@@ -17,7 +17,7 @@ func (e *Evaluator) evalNamedFunction(env *runtime.Environment, expr *ast.NamedF
 }
 
 func (e *Evaluator) evalQuote(env *runtime.Environment, expr *ast.QuoteExpr) (runtime.Value, error) {
-	body, err := e.interpolateQuoteExpr(env, expr.Body)
+	body, err := e.interpolateQuoteBody(env, expr)
 	if err != nil {
 		return nil, err
 	}
@@ -166,6 +166,43 @@ func arityMessage(expected, got int) string {
 	return fmt.Sprintf("expected %d arguments but got %d", expected, got)
 }
 
+type quoteSpliceContext string
+
+const (
+	quoteSpliceContextList  quoteSpliceContext = "list"
+	quoteSpliceContextCall  quoteSpliceContext = "call"
+	quoteSpliceContextBlock quoteSpliceContext = "block"
+)
+
+func (e *Evaluator) interpolateQuoteBody(env *runtime.Environment, quote *ast.QuoteExpr) (ast.Expr, error) {
+	if quote == nil {
+		return nil, nil
+	}
+
+	return e.interpolateQuoteSequence(env, quote.Body, quote.Span(), quoteSpliceContextBlock)
+}
+
+func (e *Evaluator) interpolateQuoteSequence(env *runtime.Environment, expr ast.Expr, span source.Span, context quoteSpliceContext) (ast.Expr, error) {
+	switch node := expr.(type) {
+	case *ast.BlockExpr:
+		items, err := e.interpolateQuoteExprSlice(env, node.Expressions, context)
+		if err != nil {
+			return nil, err
+		}
+
+		return quoteSequenceToExpr(node.SourceSpan, items), nil
+	case *ast.SpliceExpr:
+		items, err := e.interpolateQuoteSplice(env, node, context)
+		if err != nil {
+			return nil, err
+		}
+
+		return quoteSequenceToExpr(span, items), nil
+	default:
+		return e.interpolateQuoteExpr(env, expr)
+	}
+}
+
 func (e *Evaluator) interpolateQuoteExpr(env *runtime.Environment, expr ast.Expr) (ast.Expr, error) {
 	if expr == nil {
 		return nil, nil
@@ -199,7 +236,7 @@ func (e *Evaluator) interpolateQuoteExpr(env *runtime.Environment, expr ast.Expr
 
 		return &ast.GroupExpr{SourceSpan: node.SourceSpan, Inner: inner}, nil
 	case *ast.ListLiteral:
-		elements, err := e.interpolateQuoteExprSlice(env, node.Elements)
+		elements, err := e.interpolateQuoteExprSlice(env, node.Elements, quoteSpliceContextList)
 		if err != nil {
 			return nil, err
 		}
@@ -238,7 +275,7 @@ func (e *Evaluator) interpolateQuoteExpr(env *runtime.Environment, expr ast.Expr
 
 			pattern, ok := value.(ast.BindingPattern)
 			if !ok {
-				return nil, e.runtimeError(field.Value, "unquote cannot be used in this binding position")
+				return nil, e.runtimeError(field.Value, "quote interpolation cannot be used in this binding position")
 			}
 
 			fields = append(fields, &ast.RecordBindingField{
@@ -250,7 +287,7 @@ func (e *Evaluator) interpolateQuoteExpr(env *runtime.Environment, expr ast.Expr
 
 		return &ast.RecordBindingPattern{SourceSpan: node.SourceSpan, Fields: fields}, nil
 	case *ast.BlockExpr:
-		expressions, err := e.interpolateQuoteExprSlice(env, node.Expressions)
+		expressions, err := e.interpolateQuoteExprSlice(env, node.Expressions, quoteSpliceContextBlock)
 		if err != nil {
 			return nil, err
 		}
@@ -264,7 +301,7 @@ func (e *Evaluator) interpolateQuoteExpr(env *runtime.Environment, expr ast.Expr
 
 		assignmentTarget, ok := target.(ast.AssignmentTarget)
 		if !ok {
-			return nil, e.runtimeError(node.Target, "unquote cannot be used in this assignment target")
+			return nil, e.runtimeError(node.Target, "quote interpolation cannot be used in this assignment target")
 		}
 
 		value, err := e.interpolateQuoteExpr(env, node.Value)
@@ -425,7 +462,7 @@ func (e *Evaluator) interpolateQuoteExpr(env *runtime.Environment, expr ast.Expr
 
 		bindingPattern, ok := binding.(ast.BindingPattern)
 		if !ok {
-			return nil, e.runtimeError(node.Binding, "unquote cannot be used in this loop binding")
+			return nil, e.runtimeError(node.Binding, "quote interpolation cannot be used in this loop binding")
 		}
 
 		iterable, err := e.interpolateQuoteExpr(env, node.Iterable)
@@ -450,7 +487,7 @@ func (e *Evaluator) interpolateQuoteExpr(env *runtime.Environment, expr ast.Expr
 			return nil, err
 		}
 
-		args, err := e.interpolateQuoteExprSlice(env, node.Arguments)
+		args, err := e.interpolateQuoteExprSlice(env, node.Arguments, quoteSpliceContextCall)
 		if err != nil {
 			return nil, err
 		}
@@ -497,6 +534,8 @@ func (e *Evaluator) interpolateQuoteExpr(env *runtime.Environment, expr ast.Expr
 		}
 
 		return runtime.CloneExpr(code.Body), nil
+	case *ast.SpliceExpr:
+		return nil, e.runtimeError(node, "splice is only valid in list, call, or block positions inside quotes")
 	case *ast.MutationLiteralExpr:
 		rules := make([]*ast.MutationRule, 0, len(node.Rules))
 		for _, rule := range node.Rules {
@@ -542,9 +581,19 @@ func (e *Evaluator) interpolateQuoteExpr(env *runtime.Environment, expr ast.Expr
 	}
 }
 
-func (e *Evaluator) interpolateQuoteExprSlice(env *runtime.Environment, items []ast.Expr) ([]ast.Expr, error) {
+func (e *Evaluator) interpolateQuoteExprSlice(env *runtime.Environment, items []ast.Expr, context quoteSpliceContext) ([]ast.Expr, error) {
 	expressions := make([]ast.Expr, 0, len(items))
 	for _, item := range items {
+		if splice, ok := item.(*ast.SpliceExpr); ok {
+			parts, err := e.interpolateQuoteSplice(env, splice, context)
+			if err != nil {
+				return nil, err
+			}
+
+			expressions = append(expressions, parts...)
+			continue
+		}
+
 		expr, err := e.interpolateQuoteExpr(env, item)
 		if err != nil {
 			return nil, err
@@ -566,13 +615,44 @@ func (e *Evaluator) interpolateQuoteBindingPatterns(env *runtime.Environment, it
 
 		pattern, ok := expr.(ast.BindingPattern)
 		if !ok {
-			return nil, e.runtimeError(item, "unquote cannot be used in this binding position")
+			return nil, e.runtimeError(item, "quote interpolation cannot be used in this binding position")
 		}
 
 		patterns = append(patterns, pattern)
 	}
 
 	return patterns, nil
+}
+
+func (e *Evaluator) interpolateQuoteSplice(env *runtime.Environment, splice *ast.SpliceExpr, context quoteSpliceContext) ([]ast.Expr, error) {
+	value, err := e.evalExpr(env, splice.Expression)
+	if err != nil {
+		return nil, err
+	}
+
+	code, ok := value.(*runtime.CodeValue)
+	if !ok {
+		return nil, e.runtimeError(splice.Expression, fmt.Sprintf("splice expects code value, got %q", value.TypeName()))
+	}
+
+	switch context {
+	case quoteSpliceContextList, quoteSpliceContextCall:
+		list, ok := code.Body.(*ast.ListLiteral)
+		if !ok {
+			return nil, e.runtimeError(splice.Expression, fmt.Sprintf("splice in %s position expects quoted list", context))
+		}
+
+		return cloneQuoteExprs(list.Elements), nil
+	case quoteSpliceContextBlock:
+		block, ok := code.Body.(*ast.BlockExpr)
+		if !ok {
+			return nil, e.runtimeError(splice.Expression, "splice in block position expects quoted block")
+		}
+
+		return cloneQuoteExprs(block.Expressions), nil
+	default:
+		return nil, fmt.Errorf("unsupported quote splice context %q", context)
+	}
 }
 
 func cloneQuoteIdentifiers(items []*ast.Identifier) []*ast.Identifier {
@@ -582,4 +662,30 @@ func cloneQuoteIdentifiers(items []*ast.Identifier) []*ast.Identifier {
 	}
 
 	return cloned
+}
+
+func cloneQuoteExprs(items []ast.Expr) []ast.Expr {
+	cloned := make([]ast.Expr, 0, len(items))
+	for _, item := range items {
+		cloned = append(cloned, runtime.CloneExpr(item))
+	}
+
+	return cloned
+}
+
+func quoteSequenceToExpr(span source.Span, expressions []ast.Expr) ast.Expr {
+	switch len(expressions) {
+	case 0:
+		return &ast.BlockExpr{
+			SourceSpan:  span,
+			Expressions: nil,
+		}
+	case 1:
+		return expressions[0]
+	default:
+		return &ast.BlockExpr{
+			SourceSpan:  span,
+			Expressions: expressions,
+		}
+	}
 }

@@ -200,6 +200,36 @@ eval(code)   # 9
 
 Unquote inserts syntax, not the captured environment of the inserted fragment. The final quoted result still captures the environment of the outer quote that is being built.
 
+Quotes also support splicing with `~[expr]` when a quote position expects multiple child expressions:
+
+```txt
+items = @{ [1, 2] }
+steps = @{ total = 1
+total = total + 2 }
+
+listCode = @{ [0, ~[items], 3] }
+callCode = @{ range(~[items]) }
+blockCode = @{ ~[steps]
+total }
+```
+
+`~[expr]` is only valid inside quotes, and only in:
+
+- list literal element positions
+- call argument positions
+- block or top-level quote sequence positions
+
+For list and call positions, `expr` must produce a quoted list such as `@{ [1, 2] }`. For block positions, `expr` must produce a quoted block such as:
+
+```txt
+@{
+  a = 1
+  b = 2
+}
+```
+
+Use `~(expr)` when you want to insert exactly one AST node. Use `~[expr]` when you want to insert zero or more sibling nodes from a quoted list or quoted block.
+
 ## Imports
 
 Imports load another local `.molt` file relative to the importing file:

@@ -188,6 +188,8 @@ func (e *Evaluator) evalExpr(env *runtime.Environment, expr ast.Expr) (runtime.V
 		return e.evalQuote(env, node)
 	case *ast.UnquoteExpr:
 		return nil, e.runtimeError(node, "unquote is only valid inside quotes")
+	case *ast.SpliceExpr:
+		return nil, e.runtimeError(node, "splice is only valid inside quotes")
 	case *ast.MutationLiteralExpr:
 		return e.evalMutationLiteral(node)
 	case *ast.ApplyMutationExpr:

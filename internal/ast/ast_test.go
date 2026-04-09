@@ -36,6 +36,7 @@ var (
 	_ Expr             = (*FunctionLiteralExpr)(nil)
 	_ Expr             = (*QuoteExpr)(nil)
 	_ Expr             = (*UnquoteExpr)(nil)
+	_ Expr             = (*SpliceExpr)(nil)
 	_ Expr             = (*MutationLiteralExpr)(nil)
 	_ Expr             = (*ApplyMutationExpr)(nil)
 	_ Expr             = (*ListBindingPattern)(nil)
@@ -317,6 +318,10 @@ func TestFunctionCallQuoteAndMutationNodesPreserveShape(t *testing.T) {
 		SourceSpan: span,
 		Expression: paramA,
 	}
+	splice := &SpliceExpr{
+		SourceSpan: span,
+		Expression: call,
+	}
 
 	ruleOne := &MutationRule{
 		SourceSpan:  span,
@@ -348,6 +353,7 @@ func TestFunctionCallQuoteAndMutationNodesPreserveShape(t *testing.T) {
 	assertSpan(t, call, span)
 	assertSpan(t, quote, span)
 	assertSpan(t, unquote, span)
+	assertSpan(t, splice, span)
 	assertSpan(t, ruleOne, span)
 	assertSpan(t, mutation, span)
 	assertSpan(t, applied, span)
@@ -382,6 +388,10 @@ func TestFunctionCallQuoteAndMutationNodesPreserveShape(t *testing.T) {
 
 	if unquote.Expression != paramA {
 		t.Fatalf("unquote expression was not preserved")
+	}
+
+	if splice.Expression != call {
+		t.Fatalf("splice expression was not preserved")
 	}
 
 	if len(mutation.Rules) != 2 || mutation.Rules[0] != ruleOne || mutation.Rules[1] != ruleTwo {

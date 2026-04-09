@@ -94,6 +94,17 @@ func TestShowValueFormatsFunctionsCodeMutationsAndNativeFunctions(t *testing.T) 
 		t.Fatalf("interpolated code = %q, want %q", got, "@{ @{ ~(part) } }")
 	}
 
+	spliced := &CodeValue{
+		Body: &ast.QuoteExpr{
+			Body: &ast.SpliceExpr{
+				Expression: &ast.Identifier{Name: "parts"},
+			},
+		},
+	}
+	if got := ShowValue(spliced); got != "@{ @{ ~[parts] } }" {
+		t.Fatalf("spliced code = %q, want %q", got, "@{ @{ ~[parts] } }")
+	}
+
 	wantMutation := "~{\n  x -> y\n  1 -> 2\n}"
 	if got := ShowValue(mutation); got != wantMutation {
 		t.Fatalf("mutation = %q, want %q", got, wantMutation)

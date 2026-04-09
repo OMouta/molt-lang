@@ -206,6 +206,16 @@ func TestSpecExamples(t *testing.T) {
 		expectShownValue(t, value, "9")
 	})
 
+	t.Run("quote splice", func(t *testing.T) {
+		value, _ := mustExecuteProgram(t, "spec_quote_splice.molt", ""+
+			"items = @{ [1, 2] }\n"+
+			"steps = @{ total = 1\ntotal = total + 2 }\n"+
+			"code = @{ ~[steps]\n[0, ~[items], total] }\n"+
+			"eval(code)",
+		)
+		expectShownValue(t, value, `[0, 1, 2, 3]`)
+	})
+
 	t.Run("mutation as value", func(t *testing.T) {
 		value, _ := mustExecuteProgram(t, "spec_mutation_value.molt", ""+
 			"m = ~{ + -> * }\n"+

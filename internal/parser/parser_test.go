@@ -479,6 +479,49 @@ func TestParseQuoteUnquoteForms(t *testing.T) {
 	}
 }
 
+func TestParseQuoteSpliceForms(t *testing.T) {
+	program := mustParse(t, "quote_splice.molt", ""+
+		"items = @{ [1, 2] }\n"+
+		"steps = @{ a = 1\nb = 2 }\n"+
+		"@{ [0, ~[items], 3]\nrange(~[items])\n~[steps] }\n",
+	)
+
+	if len(program.Expressions) != 3 {
+		t.Fatalf("program expression count = %d, want 3", len(program.Expressions))
+	}
+
+	quote := expectExpr[*ast.QuoteExpr](t, program.Expressions[2])
+	block := expectExpr[*ast.BlockExpr](t, quote.Body)
+	if len(block.Expressions) != 3 {
+		t.Fatalf("quoted block expression count = %d, want 3", len(block.Expressions))
+	}
+
+	list := expectExpr[*ast.ListLiteral](t, block.Expressions[0])
+	if len(list.Elements) != 3 {
+		t.Fatalf("quoted list element count = %d, want 3", len(list.Elements))
+	}
+
+	spliceList := expectExpr[*ast.SpliceExpr](t, list.Elements[1])
+	if _, ok := spliceList.Expression.(*ast.Identifier); !ok {
+		t.Fatalf("list splice expression = %T, want identifier", spliceList.Expression)
+	}
+
+	call := expectExpr[*ast.CallExpr](t, block.Expressions[1])
+	if len(call.Arguments) != 1 {
+		t.Fatalf("call argument count = %d, want 1", len(call.Arguments))
+	}
+
+	spliceArgs := expectExpr[*ast.SpliceExpr](t, call.Arguments[0])
+	if _, ok := spliceArgs.Expression.(*ast.Identifier); !ok {
+		t.Fatalf("call splice expression = %T, want identifier", spliceArgs.Expression)
+	}
+
+	spliceBlock := expectExpr[*ast.SpliceExpr](t, block.Expressions[2])
+	if _, ok := spliceBlock.Expression.(*ast.Identifier); !ok {
+		t.Fatalf("block splice expression = %T, want identifier", spliceBlock.Expression)
+	}
+}
+
 func TestParseRecordLiteral(t *testing.T) {
 	program := mustParse(t, "records.molt", ""+
 		"record { answer: 42, nested: record { ok: true }, items: [1, 2] }\n"+
@@ -568,6 +611,7 @@ func TestParseRejectsMalformedPrograms(t *testing.T) {
 		{name: "missing mutation arrow", input: "~{ x y }", message: "expected '->' in mutation rule"},
 		{name: "missing mutation operand", input: "code ~\nnext", message: "expected mutation after '~'"},
 		{name: "unquote outside quote", input: "~(code)", message: "unquote is only valid inside quotes"},
+		{name: "splice outside quote", input: "~[code]", message: "splice is only valid inside quotes"},
 		{name: "trailing comma", input: "[1,]", message: "expected expression after ','"},
 	}
 

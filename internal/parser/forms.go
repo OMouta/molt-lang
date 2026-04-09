@@ -16,6 +16,12 @@ func (p *Parser) parsePrimary() (ast.Expr, error) {
 		}
 
 		return p.parseUnquote()
+	case p.check(lexer.Tilde) && p.peekN(1).Kind == lexer.LeftBracket:
+		if !p.inQuote() {
+			return nil, p.errorAt(p.peek(), "splice is only valid inside quotes")
+		}
+
+		return p.parseSplice()
 	case p.match(lexer.Number):
 		token := p.previous()
 		value, err := strconv.ParseFloat(token.Value, 64)
@@ -434,6 +440,35 @@ func (p *Parser) parseUnquote() (ast.Expr, error) {
 	}
 
 	return &ast.UnquoteExpr{
+		SourceSpan: p.mergeSpans(tilde.Span, end.Span),
+		Expression: expr,
+	}, nil
+}
+
+func (p *Parser) parseSplice() (ast.Expr, error) {
+	tilde, err := p.consume(lexer.Tilde, "expected '~' to start splice")
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := p.consume(lexer.LeftBracket, "expected '[' after '~' in splice"); err != nil {
+		return nil, err
+	}
+
+	quoteDepth := p.quoteDepth
+	p.quoteDepth = 0
+	expr, err := p.parseExpression()
+	p.quoteDepth = quoteDepth
+	if err != nil {
+		return nil, err
+	}
+
+	end, err := p.consume(lexer.RightBracket, "expected ']' after splice")
+	if err != nil {
+		return nil, err
+	}
+
+	return &ast.SpliceExpr{
 		SourceSpan: p.mergeSpans(tilde.Span, end.Span),
 		Expression: expr,
 	}, nil

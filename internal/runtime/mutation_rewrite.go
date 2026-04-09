@@ -258,6 +258,13 @@ func rewriteWithRule(expr ast.Expr, rule *ast.MutationRule) (ast.Expr, bool) {
 		}
 
 		return &ast.UnquoteExpr{SourceSpan: node.SourceSpan, Expression: inner}, true
+	case *ast.SpliceExpr:
+		inner, changed := rewriteWithRule(node.Expression, rule)
+		if !changed {
+			return expr, false
+		}
+
+		return &ast.SpliceExpr{SourceSpan: node.SourceSpan, Expression: inner}, true
 	case *ast.MutationLiteralExpr:
 		rules, changed := rewriteRuleSlice(node.Rules, rule)
 		if !changed {
@@ -430,6 +437,8 @@ func validateMutationExpr(expr ast.Expr) error {
 	case *ast.QuoteExpr:
 		return validateMutationExpr(node.Body)
 	case *ast.UnquoteExpr:
+		return validateMutationExpr(node.Expression)
+	case *ast.SpliceExpr:
 		return validateMutationExpr(node.Expression)
 	case *ast.MutationLiteralExpr:
 		return fmt.Errorf("nested mutation literals are not supported in mutation rules")
