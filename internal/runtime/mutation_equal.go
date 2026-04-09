@@ -104,6 +104,9 @@ func EqualExpr(left, right ast.Expr) bool {
 	case *ast.QuoteExpr:
 		r, ok := right.(*ast.QuoteExpr)
 		return ok && EqualExpr(l.Body, r.Body)
+	case *ast.UnquoteExpr:
+		r, ok := right.(*ast.UnquoteExpr)
+		return ok && EqualExpr(l.Expression, r.Expression)
 	case *ast.MutationLiteralExpr:
 		r, ok := right.(*ast.MutationLiteralExpr)
 		return ok && equalRules(l.Rules, r.Rules)

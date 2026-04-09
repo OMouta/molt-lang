@@ -79,6 +79,10 @@ func (p *Parser) startsOnLaterLine(previous source.Span, next lexer.Token) bool 
 	return next.Span.Start.Line > previous.End.Line
 }
 
+func (p *Parser) inQuote() bool {
+	return p.quoteDepth > 0
+}
+
 func (p *Parser) consume(kind lexer.Kind, message string) (lexer.Token, error) {
 	if p.check(kind) {
 		return p.advance(), nil

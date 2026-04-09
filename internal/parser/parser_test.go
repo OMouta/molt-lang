@@ -451,6 +451,34 @@ func TestParseMultiRuleMutationAndQuotedBlock(t *testing.T) {
 	}
 }
 
+func TestParseQuoteUnquoteForms(t *testing.T) {
+	program := mustParse(t, "quote_unquote.molt", ""+
+		"part = @{ value }\n"+
+		"@{ [~(part), @{ ~(part) }] }\n",
+	)
+
+	if len(program.Expressions) != 2 {
+		t.Fatalf("program expression count = %d, want 2", len(program.Expressions))
+	}
+
+	quote := expectExpr[*ast.QuoteExpr](t, program.Expressions[1])
+	list := expectExpr[*ast.ListLiteral](t, quote.Body)
+	if len(list.Elements) != 2 {
+		t.Fatalf("quoted list element count = %d, want 2", len(list.Elements))
+	}
+
+	unquote := expectExpr[*ast.UnquoteExpr](t, list.Elements[0])
+	if _, ok := unquote.Expression.(*ast.Identifier); !ok {
+		t.Fatalf("unquote expression = %T, want identifier", unquote.Expression)
+	}
+
+	nestedQuote := expectExpr[*ast.QuoteExpr](t, list.Elements[1])
+	nestedUnquote := expectExpr[*ast.UnquoteExpr](t, nestedQuote.Body)
+	if _, ok := nestedUnquote.Expression.(*ast.Identifier); !ok {
+		t.Fatalf("nested unquote expression = %T, want identifier", nestedUnquote.Expression)
+	}
+}
+
 func TestParseRecordLiteral(t *testing.T) {
 	program := mustParse(t, "records.molt", ""+
 		"record { answer: 42, nested: record { ok: true }, items: [1, 2] }\n"+
@@ -539,6 +567,7 @@ func TestParseRejectsMalformedPrograms(t *testing.T) {
 		{name: "field access newline", input: "value.\nname", message: "expected field name after '.'"},
 		{name: "missing mutation arrow", input: "~{ x y }", message: "expected '->' in mutation rule"},
 		{name: "missing mutation operand", input: "code ~\nnext", message: "expected mutation after '~'"},
+		{name: "unquote outside quote", input: "~(code)", message: "unquote is only valid inside quotes"},
 		{name: "trailing comma", input: "[1,]", message: "expected expression after ','"},
 	}
 

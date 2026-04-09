@@ -185,10 +185,9 @@ func (e *Evaluator) evalExpr(env *runtime.Environment, expr ast.Expr) (runtime.V
 	case *ast.OperatorLiteral:
 		return nil, e.runtimeError(node, "operator literals are only valid inside mutation rules")
 	case *ast.QuoteExpr:
-		return &runtime.CodeValue{
-			Body: node.Body,
-			Env:  env,
-		}, nil
+		return e.evalQuote(env, node)
+	case *ast.UnquoteExpr:
+		return nil, e.runtimeError(node, "unquote is only valid inside quotes")
 	case *ast.MutationLiteralExpr:
 		return e.evalMutationLiteral(node)
 	case *ast.ApplyMutationExpr:

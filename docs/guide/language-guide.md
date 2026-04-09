@@ -188,6 +188,18 @@ eval(code)   # 11
 
 Each `eval(code)` re-runs the quoted AST from scratch in a fresh frame rooted in the captured environment.
 
+Quotes also support single-node interpolation with `~(expr)`:
+
+```txt
+part = @{ 1 + 2 }
+code = @{ ~(part) * 3 }
+eval(code)   # 9
+```
+
+`~(expr)` evaluates `expr` when the surrounding quote is created, expects a `code` value, and inserts that code value's body as one AST node. It is only valid inside quotes, and it only works in ordinary expression positions. Identifier-only slots such as function names, parameter names, and record field names are not interpolated by this form.
+
+Unquote inserts syntax, not the captured environment of the inserted fragment. The final quoted result still captures the environment of the outer quote that is being built.
+
 ## Imports
 
 Imports load another local `.molt` file relative to the importing file:

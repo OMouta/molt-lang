@@ -1091,6 +1091,45 @@ func TestEvaluateQuoteCreatesCodeValueWithoutRunningIt(t *testing.T) {
 	}
 }
 
+func TestEvaluateQuoteInterpolatesSingleNodeCodeValues(t *testing.T) {
+	env := runtime.NewEnvironment(nil)
+	result := mustEval(t, env, "quote_unquote.molt", ""+
+		"part = @{ 1 + 2 }\n"+
+		"code = @{ ~(part) * 3 }\n"+
+		"[eval(code), show(code)]",
+	)
+
+	values := expectValue[*runtime.ListValue](t, result)
+	if len(values.Elements) != 2 {
+		t.Fatalf("result length = %d, want 2", len(values.Elements))
+	}
+
+	number := expectValue[*runtime.NumberValue](t, values.Elements[0])
+	if number.Value != 9 {
+		t.Fatalf("eval(code) = %v, want 9", number.Value)
+	}
+
+	text := expectValue[*runtime.StringValue](t, values.Elements[1])
+	if text.Value != "@{ ((1 + 2) * 3) }" {
+		t.Fatalf("show(code) = %q, want %q", text.Value, "@{ ((1 + 2) * 3) }")
+	}
+}
+
+func TestEvaluateNestedQuotesKeepInnerUnquotesDeferred(t *testing.T) {
+	env := runtime.NewEnvironment(nil)
+	result := mustEval(t, env, "nested_quote_unquote.molt", ""+
+		"part = @{ x + 1 }\n"+
+		"outer = @{ @{ ~(part) } }\n"+
+		"inner = eval(outer)\n"+
+		"show(inner)",
+	)
+
+	text := expectValue[*runtime.StringValue](t, result)
+	if text.Value != "@{ (x + 1) }" {
+		t.Fatalf("show(inner) = %q, want %q", text.Value, "@{ (x + 1) }")
+	}
+}
+
 func TestEvaluateMutationLiteralCreatesMutationValueInOrder(t *testing.T) {
 	result := mustEval(t, runtime.NewEnvironment(nil), "mutation_value.molt", "~{ x -> y\n1 -> 2\n+ -> * }")
 	mutation := expectValue[*runtime.MutationValue](t, result)
@@ -1107,6 +1146,17 @@ func TestEvaluateMutationLiteralCreatesMutationValueInOrder(t *testing.T) {
 	third := expectMutationExpr[*ast.OperatorLiteral](t, mutation.Rules[2].Pattern)
 	if first.Name != "x" || second.Value != 1 || third.Symbol != "+" {
 		t.Fatalf("mutation rules were not preserved in source order")
+	}
+}
+
+func TestEvaluateQuoteUnquoteRejectsNonCodeValues(t *testing.T) {
+	_, err := evalString(runtime.NewEnvironment(nil), "invalid_unquote.molt", ""+
+		"value = 1\n"+
+		"@{ ~(value) }",
+	)
+	runtimeErr := expectRuntimeError(t, err)
+	if runtimeErr.Diagnostic().Message != `unquote expects code value, got "number"` {
+		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, `unquote expects code value, got "number"`)
 	}
 }
 

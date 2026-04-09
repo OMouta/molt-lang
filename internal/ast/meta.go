@@ -10,6 +10,14 @@ type QuoteExpr struct {
 func (n *QuoteExpr) Span() source.Span { return n.SourceSpan }
 func (*QuoteExpr) exprNode()           {}
 
+type UnquoteExpr struct {
+	SourceSpan source.Span
+	Expression Expr
+}
+
+func (n *UnquoteExpr) Span() source.Span { return n.SourceSpan }
+func (*UnquoteExpr) exprNode()           {}
+
 type MutationLiteralExpr struct {
 	SourceSpan source.Span
 	Rules      []*MutationRule

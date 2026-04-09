@@ -492,6 +492,8 @@ func formatExpr(expr ast.Expr, indent int) string {
 		return "fn(" + strings.Join(parameters, ", ") + ") = " + formatExpr(node.Body, indent)
 	case *ast.QuoteExpr:
 		return formatDelimitedExpr("@{", "}", node.Body, indent)
+	case *ast.UnquoteExpr:
+		return "~(" + formatExpr(node.Expression, indent) + ")"
 	case *ast.MutationLiteralExpr:
 		return formatMutationValue(&MutationValue{Rules: node.Rules}, indent)
 	case *ast.ApplyMutationExpr:

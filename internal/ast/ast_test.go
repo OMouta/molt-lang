@@ -7,48 +7,49 @@ import (
 )
 
 var (
-	_ Expr = (*NumberLiteral)(nil)
-	_ Expr = (*StringLiteral)(nil)
-	_ Expr = (*BooleanLiteral)(nil)
-	_ Expr = (*NilLiteral)(nil)
-	_ Expr = (*OperatorLiteral)(nil)
-	_ Expr = (*Identifier)(nil)
-	_ Expr = (*GroupExpr)(nil)
-	_ Expr = (*ListLiteral)(nil)
-	_ Expr = (*RecordLiteral)(nil)
-	_ Expr = (*FieldAccessExpr)(nil)
-	_ Expr = (*BlockExpr)(nil)
-	_ Expr = (*AssignmentExpr)(nil)
-	_ Expr = (*IndexExpr)(nil)
-	_ Expr = (*UnaryExpr)(nil)
-	_ Expr = (*BinaryExpr)(nil)
-	_ Expr = (*ConditionalExpr)(nil)
-	_ Expr = (*WhileExpr)(nil)
-	_ Expr = (*TryCatchExpr)(nil)
-	_ Expr = (*MatchExpr)(nil)
-	_ Expr = (*ForInExpr)(nil)
-	_ Expr = (*BreakExpr)(nil)
-	_ Expr = (*ContinueExpr)(nil)
-	_ Expr = (*ExportExpr)(nil)
-	_ Expr = (*ImportExpr)(nil)
-	_ Expr = (*CallExpr)(nil)
-	_ Expr = (*NamedFunctionExpr)(nil)
-	_ Expr = (*FunctionLiteralExpr)(nil)
-	_ Expr = (*QuoteExpr)(nil)
-	_ Expr = (*MutationLiteralExpr)(nil)
-	_ Expr = (*ApplyMutationExpr)(nil)
-	_ Expr = (*ListBindingPattern)(nil)
-	_ Expr = (*RecordBindingPattern)(nil)
-	_ BindingPattern = (*Identifier)(nil)
-	_ BindingPattern = (*ListBindingPattern)(nil)
-	_ BindingPattern = (*RecordBindingPattern)(nil)
+	_ Expr             = (*NumberLiteral)(nil)
+	_ Expr             = (*StringLiteral)(nil)
+	_ Expr             = (*BooleanLiteral)(nil)
+	_ Expr             = (*NilLiteral)(nil)
+	_ Expr             = (*OperatorLiteral)(nil)
+	_ Expr             = (*Identifier)(nil)
+	_ Expr             = (*GroupExpr)(nil)
+	_ Expr             = (*ListLiteral)(nil)
+	_ Expr             = (*RecordLiteral)(nil)
+	_ Expr             = (*FieldAccessExpr)(nil)
+	_ Expr             = (*BlockExpr)(nil)
+	_ Expr             = (*AssignmentExpr)(nil)
+	_ Expr             = (*IndexExpr)(nil)
+	_ Expr             = (*UnaryExpr)(nil)
+	_ Expr             = (*BinaryExpr)(nil)
+	_ Expr             = (*ConditionalExpr)(nil)
+	_ Expr             = (*WhileExpr)(nil)
+	_ Expr             = (*TryCatchExpr)(nil)
+	_ Expr             = (*MatchExpr)(nil)
+	_ Expr             = (*ForInExpr)(nil)
+	_ Expr             = (*BreakExpr)(nil)
+	_ Expr             = (*ContinueExpr)(nil)
+	_ Expr             = (*ExportExpr)(nil)
+	_ Expr             = (*ImportExpr)(nil)
+	_ Expr             = (*CallExpr)(nil)
+	_ Expr             = (*NamedFunctionExpr)(nil)
+	_ Expr             = (*FunctionLiteralExpr)(nil)
+	_ Expr             = (*QuoteExpr)(nil)
+	_ Expr             = (*UnquoteExpr)(nil)
+	_ Expr             = (*MutationLiteralExpr)(nil)
+	_ Expr             = (*ApplyMutationExpr)(nil)
+	_ Expr             = (*ListBindingPattern)(nil)
+	_ Expr             = (*RecordBindingPattern)(nil)
+	_ BindingPattern   = (*Identifier)(nil)
+	_ BindingPattern   = (*ListBindingPattern)(nil)
+	_ BindingPattern   = (*RecordBindingPattern)(nil)
 	_ AssignmentTarget = (*Identifier)(nil)
 	_ AssignmentTarget = (*ListBindingPattern)(nil)
 	_ AssignmentTarget = (*RecordBindingPattern)(nil)
 	_ AssignmentTarget = (*FieldAccessExpr)(nil)
-	_ Node = (*MatchCase)(nil)
-	_ Node = (*RecordBindingField)(nil)
-	_ Node = (*MutationRule)(nil)
+	_ Node             = (*MatchCase)(nil)
+	_ Node             = (*RecordBindingField)(nil)
+	_ Node             = (*MutationRule)(nil)
 )
 
 func TestLiteralIdentifierAndListNodesPreserveSpansAndPayloads(t *testing.T) {
@@ -312,6 +313,10 @@ func TestFunctionCallQuoteAndMutationNodesPreserveShape(t *testing.T) {
 		SourceSpan: span,
 		Body:       body,
 	}
+	unquote := &UnquoteExpr{
+		SourceSpan: span,
+		Expression: paramA,
+	}
 
 	ruleOne := &MutationRule{
 		SourceSpan:  span,
@@ -342,6 +347,7 @@ func TestFunctionCallQuoteAndMutationNodesPreserveShape(t *testing.T) {
 	assertSpan(t, importExpr, span)
 	assertSpan(t, call, span)
 	assertSpan(t, quote, span)
+	assertSpan(t, unquote, span)
 	assertSpan(t, ruleOne, span)
 	assertSpan(t, mutation, span)
 	assertSpan(t, applied, span)
@@ -372,6 +378,10 @@ func TestFunctionCallQuoteAndMutationNodesPreserveShape(t *testing.T) {
 
 	if quote.Body != body {
 		t.Fatalf("quote body was not preserved")
+	}
+
+	if unquote.Expression != paramA {
+		t.Fatalf("unquote expression was not preserved")
 	}
 
 	if len(mutation.Rules) != 2 || mutation.Rules[0] != ruleOne || mutation.Rules[1] != ruleTwo {

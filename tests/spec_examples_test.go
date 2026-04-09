@@ -197,6 +197,15 @@ func TestSpecExamples(t *testing.T) {
 		expectShownValue(t, value, "2")
 	})
 
+	t.Run("quote unquote", func(t *testing.T) {
+		value, _ := mustExecuteProgram(t, "spec_quote_unquote.molt", ""+
+			"part = @{ 1 + 2 }\n"+
+			"code = @{ ~(part) * 3 }\n"+
+			"eval(code)",
+		)
+		expectShownValue(t, value, "9")
+	})
+
 	t.Run("mutation as value", func(t *testing.T) {
 		value, _ := mustExecuteProgram(t, "spec_mutation_value.molt", ""+
 			"m = ~{ + -> * }\n"+

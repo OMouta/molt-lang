@@ -10,6 +10,12 @@ import (
 
 func (p *Parser) parsePrimary() (ast.Expr, error) {
 	switch {
+	case p.check(lexer.Tilde) && p.peekN(1).Kind == lexer.LeftParen:
+		if !p.inQuote() {
+			return nil, p.errorAt(p.peek(), "unquote is only valid inside quotes")
+		}
+
+		return p.parseUnquote()
 	case p.match(lexer.Number):
 		token := p.previous()
 		value, err := strconv.ParseFloat(token.Value, 64)
@@ -384,7 +390,9 @@ func (p *Parser) parseQuote() (ast.Expr, error) {
 		return nil, err
 	}
 
+	p.quoteDepth++
 	expressions, err := p.parseExpressionSequence(lexer.RightBrace, "'}'")
+	p.quoteDepth--
 	if err != nil {
 		return nil, err
 	}
@@ -399,6 +407,35 @@ func (p *Parser) parseQuote() (ast.Expr, error) {
 	return &ast.QuoteExpr{
 		SourceSpan: p.mergeSpans(start.Span, end.Span),
 		Body:       body,
+	}, nil
+}
+
+func (p *Parser) parseUnquote() (ast.Expr, error) {
+	tilde, err := p.consume(lexer.Tilde, "expected '~' to start unquote")
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := p.consume(lexer.LeftParen, "expected '(' after '~' in unquote"); err != nil {
+		return nil, err
+	}
+
+	quoteDepth := p.quoteDepth
+	p.quoteDepth = 0
+	expr, err := p.parseExpression()
+	p.quoteDepth = quoteDepth
+	if err != nil {
+		return nil, err
+	}
+
+	end, err := p.consume(lexer.RightParen, "expected ')' after unquote")
+	if err != nil {
+		return nil, err
+	}
+
+	return &ast.UnquoteExpr{
+		SourceSpan: p.mergeSpans(tilde.Span, end.Span),
+		Expression: expr,
 	}, nil
 }
 
