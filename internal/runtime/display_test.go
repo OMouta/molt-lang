@@ -84,25 +84,48 @@ func TestShowValueFormatsFunctionsCodeMutationsAndNativeFunctions(t *testing.T) 
 	}
 
 	interpolated := &CodeValue{
-		Body: &ast.QuoteExpr{
-			Body: &ast.UnquoteExpr{
+		Body: &ast.BinaryExpr{
+			Left: &ast.BinaryExpr{
+				Left:     &ast.NumberLiteral{Value: 1},
+				Operator: ast.BinaryAdd,
+				Right:    &ast.NumberLiteral{Value: 2},
+			},
+			Operator: ast.BinaryMultiply,
+			Right:    &ast.NumberLiteral{Value: 3},
+		},
+		Template: &ast.BinaryExpr{
+			Left: &ast.UnquoteExpr{
 				Expression: &ast.Identifier{Name: "part"},
 			},
+			Operator: ast.BinaryMultiply,
+			Right:    &ast.NumberLiteral{Value: 3},
 		},
 	}
-	if got := ShowValue(interpolated); got != "@{ @{ ~(part) } }" {
-		t.Fatalf("interpolated code = %q, want %q", got, "@{ @{ ~(part) } }")
+	if got := ShowValue(interpolated); got != "@{ (~(part) * 3) }" {
+		t.Fatalf("interpolated code = %q, want %q", got, "@{ (~(part) * 3) }")
 	}
 
 	spliced := &CodeValue{
-		Body: &ast.QuoteExpr{
-			Body: &ast.SpliceExpr{
-				Expression: &ast.Identifier{Name: "parts"},
+		Body: &ast.ListLiteral{
+			Elements: []ast.Expr{
+				&ast.NumberLiteral{Value: 0},
+				&ast.NumberLiteral{Value: 1},
+				&ast.NumberLiteral{Value: 2},
+				&ast.NumberLiteral{Value: 3},
+			},
+		},
+		Template: &ast.ListLiteral{
+			Elements: []ast.Expr{
+				&ast.NumberLiteral{Value: 0},
+				&ast.SpliceExpr{
+					Expression: &ast.Identifier{Name: "parts"},
+				},
+				&ast.NumberLiteral{Value: 3},
 			},
 		},
 	}
-	if got := ShowValue(spliced); got != "@{ @{ ~[parts] } }" {
-		t.Fatalf("spliced code = %q, want %q", got, "@{ @{ ~[parts] } }")
+	if got := ShowValue(spliced); got != "@{ [0, ~[parts], 3] }" {
+		t.Fatalf("spliced code = %q, want %q", got, "@{ [0, ~[parts], 3] }")
 	}
 
 	wantMutation := "~{\n  x -> y\n  1 -> 2\n}"

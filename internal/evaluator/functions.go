@@ -17,14 +17,19 @@ func (e *Evaluator) evalNamedFunction(env *runtime.Environment, expr *ast.NamedF
 }
 
 func (e *Evaluator) evalQuote(env *runtime.Environment, expr *ast.QuoteExpr) (runtime.Value, error) {
+	if err := e.validateQuoteTemplate(expr); err != nil {
+		return nil, err
+	}
+
 	body, err := e.interpolateQuoteBody(env, expr)
 	if err != nil {
 		return nil, err
 	}
 
 	return &runtime.CodeValue{
-		Body: body,
-		Env:  env,
+		Body:     body,
+		Template: runtime.CloneExpr(expr.Body),
+		Env:      env,
 	}, nil
 }
 
@@ -173,6 +178,195 @@ const (
 	quoteSpliceContextCall  quoteSpliceContext = "call"
 	quoteSpliceContextBlock quoteSpliceContext = "block"
 )
+
+type quoteValidationContext string
+
+const (
+	quoteValidationExpr    quoteValidationContext = "expression"
+	quoteValidationList    quoteValidationContext = "list"
+	quoteValidationCall    quoteValidationContext = "call"
+	quoteValidationBlock   quoteValidationContext = "block"
+	quoteValidationAssign  quoteValidationContext = "assignment-target"
+	quoteValidationBinding quoteValidationContext = "binding"
+)
+
+func (e *Evaluator) validateQuoteTemplate(quote *ast.QuoteExpr) error {
+	if quote == nil {
+		return nil
+	}
+
+	return e.validateQuoteExpr(quote.Body, quoteValidationBlock)
+}
+
+func (e *Evaluator) validateQuoteExpr(expr ast.Expr, context quoteValidationContext) error {
+	if expr == nil {
+		return nil
+	}
+
+	switch node := expr.(type) {
+	case *ast.UnquoteExpr:
+		switch context {
+		case quoteValidationAssign:
+			return e.runtimeError(node, "unquote is not allowed in assignment targets inside quotes")
+		case quoteValidationBinding:
+			return e.runtimeError(node, "unquote is not allowed in binding positions inside quotes")
+		default:
+			return nil
+		}
+	case *ast.SpliceExpr:
+		switch context {
+		case quoteValidationList, quoteValidationCall, quoteValidationBlock:
+			return nil
+		case quoteValidationAssign:
+			return e.runtimeError(node, "splice is not allowed in assignment targets inside quotes")
+		case quoteValidationBinding:
+			return e.runtimeError(node, "splice is not allowed in binding positions inside quotes")
+		default:
+			return e.runtimeError(node, "splice is only allowed in list, call, or block positions inside quotes")
+		}
+	case *ast.OperatorLiteral,
+		*ast.NumberLiteral,
+		*ast.StringLiteral,
+		*ast.BooleanLiteral,
+		*ast.NilLiteral,
+		*ast.BreakExpr,
+		*ast.ContinueExpr,
+		*ast.Identifier:
+		return nil
+	case *ast.ExportExpr:
+		return e.validateQuoteExpr(node.Name, quoteValidationExpr)
+	case *ast.ImportExpr:
+		return e.validateQuoteExpr(node.Path, quoteValidationExpr)
+	case *ast.GroupExpr:
+		return e.validateQuoteExpr(node.Inner, quoteValidationExpr)
+	case *ast.ListLiteral:
+		for _, item := range node.Elements {
+			if err := e.validateQuoteExpr(item, quoteValidationList); err != nil {
+				return err
+			}
+		}
+		return nil
+	case *ast.ListBindingPattern:
+		for _, item := range node.Elements {
+			if err := e.validateQuoteExpr(item, quoteValidationBinding); err != nil {
+				return err
+			}
+		}
+		return nil
+	case *ast.RecordLiteral:
+		for _, field := range node.Fields {
+			if err := e.validateQuoteExpr(field.Value, quoteValidationExpr); err != nil {
+				return err
+			}
+		}
+		return nil
+	case *ast.RecordBindingPattern:
+		for _, field := range node.Fields {
+			if err := e.validateQuoteExpr(field.Value, quoteValidationBinding); err != nil {
+				return err
+			}
+		}
+		return nil
+	case *ast.BlockExpr:
+		for _, item := range node.Expressions {
+			if err := e.validateQuoteExpr(item, quoteValidationBlock); err != nil {
+				return err
+			}
+		}
+		return nil
+	case *ast.AssignmentExpr:
+		if err := e.validateQuoteExpr(node.Target, quoteValidationAssign); err != nil {
+			return err
+		}
+		return e.validateQuoteExpr(node.Value, quoteValidationExpr)
+	case *ast.IndexExpr:
+		if err := e.validateQuoteExpr(node.Target, quoteValidationExpr); err != nil {
+			return err
+		}
+		return e.validateQuoteExpr(node.Index, quoteValidationExpr)
+	case *ast.FieldAccessExpr:
+		return e.validateQuoteExpr(node.Target, quoteValidationExpr)
+	case *ast.UnaryExpr:
+		return e.validateQuoteExpr(node.Operand, quoteValidationExpr)
+	case *ast.BinaryExpr:
+		if err := e.validateQuoteExpr(node.Left, quoteValidationExpr); err != nil {
+			return err
+		}
+		return e.validateQuoteExpr(node.Right, quoteValidationExpr)
+	case *ast.ConditionalExpr:
+		if err := e.validateQuoteExpr(node.Condition, quoteValidationExpr); err != nil {
+			return err
+		}
+		if err := e.validateQuoteExpr(node.ThenBranch, quoteValidationExpr); err != nil {
+			return err
+		}
+		return e.validateQuoteExpr(node.ElseBranch, quoteValidationExpr)
+	case *ast.WhileExpr:
+		if err := e.validateQuoteExpr(node.Condition, quoteValidationExpr); err != nil {
+			return err
+		}
+		return e.validateQuoteExpr(node.Body, quoteValidationExpr)
+	case *ast.TryCatchExpr:
+		if err := e.validateQuoteExpr(node.Body, quoteValidationExpr); err != nil {
+			return err
+		}
+		return e.validateQuoteExpr(node.CatchBranch, quoteValidationExpr)
+	case *ast.MatchExpr:
+		if err := e.validateQuoteExpr(node.Subject, quoteValidationExpr); err != nil {
+			return err
+		}
+		for _, matchCase := range node.Cases {
+			if err := e.validateQuoteExpr(matchCase.Pattern, quoteValidationExpr); err != nil {
+				return err
+			}
+			if err := e.validateQuoteExpr(matchCase.Branch, quoteValidationExpr); err != nil {
+				return err
+			}
+		}
+		return nil
+	case *ast.ForInExpr:
+		if err := e.validateQuoteExpr(node.Binding, quoteValidationBinding); err != nil {
+			return err
+		}
+		if err := e.validateQuoteExpr(node.Iterable, quoteValidationExpr); err != nil {
+			return err
+		}
+		return e.validateQuoteExpr(node.Body, quoteValidationExpr)
+	case *ast.CallExpr:
+		if err := e.validateQuoteExpr(node.Callee, quoteValidationExpr); err != nil {
+			return err
+		}
+		for _, arg := range node.Arguments {
+			if err := e.validateQuoteExpr(arg, quoteValidationCall); err != nil {
+				return err
+			}
+		}
+		return nil
+	case *ast.NamedFunctionExpr:
+		return e.validateQuoteExpr(node.Body, quoteValidationExpr)
+	case *ast.FunctionLiteralExpr:
+		return e.validateQuoteExpr(node.Body, quoteValidationExpr)
+	case *ast.QuoteExpr:
+		return e.validateQuoteTemplate(node)
+	case *ast.MutationLiteralExpr:
+		for _, rule := range node.Rules {
+			if err := e.validateQuoteExpr(rule.Pattern, quoteValidationExpr); err != nil {
+				return err
+			}
+			if err := e.validateQuoteExpr(rule.Replacement, quoteValidationExpr); err != nil {
+				return err
+			}
+		}
+		return nil
+	case *ast.ApplyMutationExpr:
+		if err := e.validateQuoteExpr(node.Target, quoteValidationExpr); err != nil {
+			return err
+		}
+		return e.validateQuoteExpr(node.Mutation, quoteValidationExpr)
+	default:
+		return fmt.Errorf("unsupported quote validation expression type %T", expr)
+	}
+}
 
 func (e *Evaluator) interpolateQuoteBody(env *runtime.Environment, quote *ast.QuoteExpr) (ast.Expr, error) {
 	if quote == nil {

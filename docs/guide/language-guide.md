@@ -200,6 +200,8 @@ eval(code)   # 9
 
 Unquote inserts syntax, not the captured environment of the inserted fragment. The final quoted result still captures the environment of the outer quote that is being built.
 
+Malformed interpolation shapes are rejected when the quote is created, before any `~(...)` or `~[...]` expression is evaluated. That keeps errors local to the quoted template and avoids partial side effects from interpolation helpers.
+
 Quotes also support splicing with `~[expr]` when a quote position expects multiple child expressions:
 
 ```txt
@@ -229,6 +231,8 @@ For list and call positions, `expr` must produce a quoted list such as `@{ [1, 2
 ```
 
 Use `~(expr)` when you want to insert exactly one AST node. Use `~[expr]` when you want to insert zero or more sibling nodes from a quoted list or quoted block.
+
+When a quote contains interpolation, `show(code)` keeps the original `~(...)` and `~[...]` template instead of only showing the expanded result. That makes generated code easier to debug without changing what `eval(code)` executes.
 
 ## Imports
 

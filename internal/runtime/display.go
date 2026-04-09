@@ -175,7 +175,12 @@ func formatFunctionValue(fn *UserFunctionValue, indent int) string {
 }
 
 func formatCodeValue(code *CodeValue, indent int) string {
-	return formatDelimitedExpr("@{", "}", code.Body, indent)
+	body := code.Body
+	if code != nil && code.Template != nil {
+		body = code.Template
+	}
+
+	return formatDelimitedExpr("@{", "}", body, indent)
 }
 
 func formatMutationValue(mutation *MutationValue, indent int) string {

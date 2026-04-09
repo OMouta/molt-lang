@@ -1110,8 +1110,8 @@ func TestEvaluateQuoteInterpolatesSingleNodeCodeValues(t *testing.T) {
 	}
 
 	text := expectValue[*runtime.StringValue](t, values.Elements[1])
-	if text.Value != "@{ ((1 + 2) * 3) }" {
-		t.Fatalf("show(code) = %q, want %q", text.Value, "@{ ((1 + 2) * 3) }")
+	if text.Value != "@{ (~(part) * 3) }" {
+		t.Fatalf("show(code) = %q, want %q", text.Value, "@{ (~(part) * 3) }")
 	}
 }
 
@@ -1125,8 +1125,8 @@ func TestEvaluateNestedQuotesKeepInnerUnquotesDeferred(t *testing.T) {
 	)
 
 	text := expectValue[*runtime.StringValue](t, result)
-	if text.Value != "@{ (x + 1) }" {
-		t.Fatalf("show(inner) = %q, want %q", text.Value, "@{ (x + 1) }")
+	if text.Value != "@{ ~(part) }" {
+		t.Fatalf("show(inner) = %q, want %q", text.Value, "@{ ~(part) }")
 	}
 }
 
@@ -1160,18 +1160,18 @@ func TestEvaluateQuoteSplicesListsCallsAndBlocks(t *testing.T) {
 	}
 
 	listText := expectValue[*runtime.StringValue](t, values.Elements[3])
-	if listText.Value != "@{ [0, 1, 2, 3] }" {
-		t.Fatalf("show(listCode) = %q, want %q", listText.Value, "@{ [0, 1, 2, 3] }")
+	if listText.Value != "@{ [0, ~[items], 3] }" {
+		t.Fatalf("show(listCode) = %q, want %q", listText.Value, "@{ [0, ~[items], 3] }")
 	}
 
 	callText := expectValue[*runtime.StringValue](t, values.Elements[4])
-	if callText.Value != "@{ range(1, 2) }" {
-		t.Fatalf("show(callCode) = %q, want %q", callText.Value, "@{ range(1, 2) }")
+	if callText.Value != "@{ range(~[items]) }" {
+		t.Fatalf("show(callCode) = %q, want %q", callText.Value, "@{ range(~[items]) }")
 	}
 
 	blockText := expectValue[*runtime.StringValue](t, values.Elements[5])
-	if blockText.Value != "@{\n  a = 10\n  b = 20\n  (a + b)\n}" {
-		t.Fatalf("show(blockCode) = %q, want %q", blockText.Value, "@{\n  a = 10\n  b = 20\n  (a + b)\n}")
+	if blockText.Value != "@{\n  ~[steps]\n  (a + b)\n}" {
+		t.Fatalf("show(blockCode) = %q, want %q", blockText.Value, "@{\n  ~[steps]\n  (a + b)\n}")
 	}
 }
 
@@ -1247,6 +1247,59 @@ func TestEvaluateQuoteSpliceRejectsInvalidTargets(t *testing.T) {
 			runtimeErr := expectRuntimeError(t, err)
 			if runtimeErr.Diagnostic().Message != tc.message {
 				t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, tc.message)
+			}
+		})
+	}
+}
+
+func TestEvaluateQuoteValidationRejectsMalformedInterpolationBeforeExecution(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        string
+		message      string
+		bindingName  string
+		bindingValue float64
+	}{
+		{
+			name: "splice expression position",
+			input: "" +
+				"seen = 0\n" +
+				"fn build() = {\n" +
+				"  seen = seen + 1\n" +
+				"  @{ [1, 2] }\n" +
+				"}\n" +
+				"@{ 0 + ~[build()] }",
+			message:      "splice is only allowed in list, call, or block positions inside quotes",
+			bindingName:  "seen",
+			bindingValue: 0,
+		},
+		{
+			name: "splice mutation pattern position",
+			input: "" +
+				"seen = 0\n" +
+				"fn build() = {\n" +
+				"  seen = seen + 1\n" +
+				"  @{ [1, 2] }\n" +
+				"}\n" +
+				"@{ ~{ ~[build()] -> 1 } }",
+			message:      "splice is only allowed in list, call, or block positions inside quotes",
+			bindingName:  "seen",
+			bindingValue: 0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			env := runtime.NewEnvironment(nil)
+			_, err := evalString(env, tc.name+".molt", tc.input)
+			runtimeErr := expectRuntimeError(t, err)
+			if runtimeErr.Diagnostic().Message != tc.message {
+				t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, tc.message)
+			}
+
+			value := expectValue[*runtime.NumberValue](t, env.MustGet(tc.bindingName))
+			if value.Value != tc.bindingValue {
+				t.Fatalf("%s = %v, want %v", tc.bindingName, value.Value, tc.bindingValue)
 			}
 		})
 	}

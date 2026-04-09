@@ -251,8 +251,9 @@ func (v *NativeFunctionValue) Call(ctx *CallContext, args []Value) (Value, error
 }
 
 type CodeValue struct {
-	Body ast.Expr
-	Env  *Environment
+	Body     ast.Expr
+	Template ast.Expr
+	Env      *Environment
 }
 
 func (v *CodeValue) TypeName() string { return typenames.Code }
