@@ -7,8 +7,9 @@ import (
 )
 
 func rewriteWithRule(expr ast.Expr, rule *ast.MutationRule) (ast.Expr, bool) {
-	if EqualExpr(expr, rule.Pattern) {
-		return CloneExpr(rule.Replacement), true
+	captures := mutationCaptures{}
+	if matchMutationExpr(rule.Pattern, expr, captures) {
+		return instantiateMutationExpr(rule.Replacement, captures), true
 	}
 
 	switch node := expr.(type) {
@@ -302,7 +303,8 @@ func validateMutationExpr(expr ast.Expr) error {
 		*ast.NilLiteral,
 		*ast.BreakExpr,
 		*ast.ContinueExpr,
-		*ast.Identifier:
+		*ast.Identifier,
+		*ast.MutationCaptureExpr:
 		return nil
 	case *ast.ExportExpr:
 		return validateMutationExpr(node.Name)

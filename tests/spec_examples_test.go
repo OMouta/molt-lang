@@ -243,6 +243,18 @@ func TestSpecExamples(t *testing.T) {
 		expectShownValue(t, value, "4")
 	})
 
+	t.Run("mutation capture substitution", func(t *testing.T) {
+		value, _ := mustExecuteProgram(t, "spec_mutation_capture.molt", ""+
+			"value = 7\n"+
+			"simplify = ~{\n"+
+			"  ($x + 0) -> $x\n"+
+			"  (0 + $x) -> $x\n"+
+			"}\n"+
+			"eval(@{ 0 + (value + 0) } ~ simplify)",
+		)
+		expectShownValue(t, value, "7")
+	})
+
 	t.Run("function mutation", func(t *testing.T) {
 		value, _ := mustExecuteProgram(t, "spec_function_mutation.molt", ""+
 			"fn add(a, b) = a + b\n"+

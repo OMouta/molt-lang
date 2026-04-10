@@ -47,6 +47,22 @@ func TestValidateMutationRuleRejectsUnsupportedForms(t *testing.T) {
 				Replacement: &ast.NumberLiteral{SourceSpan: span, Value: 1},
 			},
 		},
+		{
+			name: "malformed capture pattern",
+			rule: &ast.MutationRule{
+				SourceSpan:  span,
+				Pattern:     capture(number(1)),
+				Replacement: &ast.NumberLiteral{SourceSpan: span, Value: 0},
+			},
+		},
+		{
+			name: "unbound replacement capture",
+			rule: &ast.MutationRule{
+				SourceSpan:  span,
+				Pattern:     &ast.NumberLiteral{SourceSpan: span, Value: 1},
+				Replacement: capture(identifier("x")),
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -117,6 +133,62 @@ func TestApplyRuleDoesNotRematchReplacementNodesInSamePass(t *testing.T) {
 	left := expectExpr[*ast.Identifier](t, bin.Left)
 	if left.Name != "x" {
 		t.Fatalf("left identifier = %q, want %q", left.Name, "x")
+	}
+}
+
+func TestApplyRuleSupportsCapturePatternsAndSubstitution(t *testing.T) {
+	expr := binary(
+		binary(identifier("total"), "+", number(0)),
+		"+",
+		binary(number(0), "+", identifier("count")),
+	)
+
+	mutation := &MutationValue{
+		Rules: []*ast.MutationRule{
+			rule(binary(capture(identifier("x")), "+", number(0)), capture(identifier("x"))),
+			rule(binary(number(0), "+", capture(identifier("x"))), capture(identifier("x"))),
+		},
+	}
+
+	rewritten, err := Rewrite(expr, mutation)
+	if err != nil {
+		t.Fatalf("Rewrite returned error: %v", err)
+	}
+
+	root := expectExpr[*ast.BinaryExpr](t, rewritten)
+	left := expectExpr[*ast.Identifier](t, root.Left)
+	right := expectExpr[*ast.Identifier](t, root.Right)
+	if left.Name != "total" || right.Name != "count" {
+		t.Fatalf("capture rewrite mismatch: left=%q right=%q", left.Name, right.Name)
+	}
+}
+
+func TestApplyRuleRequiresRepeatedCapturesToMatchSameSubtree(t *testing.T) {
+	rule := rule(
+		binary(capture(identifier("x")), "+", capture(identifier("x"))),
+		capture(identifier("x")),
+	)
+
+	rewritten, err := ApplyRule(binary(identifier("a"), "+", identifier("a")), rule)
+	if err != nil {
+		t.Fatalf("ApplyRule returned error: %v", err)
+	}
+
+	ident := expectExpr[*ast.Identifier](t, rewritten)
+	if ident.Name != "a" {
+		t.Fatalf("rewritten identifier = %q, want %q", ident.Name, "a")
+	}
+
+	unchanged, err := ApplyRule(binary(identifier("a"), "+", identifier("b")), rule)
+	if err != nil {
+		t.Fatalf("ApplyRule returned error: %v", err)
+	}
+
+	bin := expectExpr[*ast.BinaryExpr](t, unchanged)
+	left := expectExpr[*ast.Identifier](t, bin.Left)
+	right := expectExpr[*ast.Identifier](t, bin.Right)
+	if left.Name != "a" || right.Name != "b" {
+		t.Fatalf("non-matching repeated capture changed expression unexpectedly")
 	}
 }
 
@@ -427,6 +499,19 @@ func group(inner ast.Expr) *ast.GroupExpr {
 func rule(pattern, replacement ast.Expr) *ast.MutationRule {
 	span := helperSpan()
 	return &ast.MutationRule{SourceSpan: span, Pattern: pattern, Replacement: replacement}
+}
+
+func capture(name ast.Expr) ast.Expr {
+	span := helperSpan()
+	ident, ok := name.(*ast.Identifier)
+	if !ok {
+		return &ast.MutationCaptureExpr{SourceSpan: span}
+	}
+
+	return &ast.MutationCaptureExpr{
+		SourceSpan: span,
+		Name:       &ast.Identifier{SourceSpan: ident.SourceSpan, Name: ident.Name},
+	}
 }
 
 func helperSpan() source.Span {

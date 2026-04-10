@@ -42,6 +42,14 @@ type MutationRule struct {
 
 func (n *MutationRule) Span() source.Span { return n.SourceSpan }
 
+type MutationCaptureExpr struct {
+	SourceSpan source.Span
+	Name       *Identifier
+}
+
+func (n *MutationCaptureExpr) Span() source.Span { return n.SourceSpan }
+func (*MutationCaptureExpr) exprNode()           {}
+
 type ApplyMutationExpr struct {
 	SourceSpan source.Span
 	Target     Expr

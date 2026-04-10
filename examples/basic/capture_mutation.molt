@@ -1,0 +1,8 @@
+value = 7
+
+simplify = ~{
+  ($x + 0) -> $x
+  (0 + $x) -> $x
+}
+
+print(eval(@{ 0 + (value + 0) } ~ simplify))

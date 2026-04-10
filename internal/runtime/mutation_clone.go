@@ -139,6 +139,8 @@ func CloneExpr(expr ast.Expr) ast.Expr {
 		return &ast.SpliceExpr{SourceSpan: node.SourceSpan, Expression: CloneExpr(node.Expression)}
 	case *ast.MutationLiteralExpr:
 		return &ast.MutationLiteralExpr{SourceSpan: node.SourceSpan, Rules: CloneRules(node.Rules)}
+	case *ast.MutationCaptureExpr:
+		return &ast.MutationCaptureExpr{SourceSpan: node.SourceSpan, Name: cloneIdentifier(node.Name)}
 	case *ast.ApplyMutationExpr:
 		return &ast.ApplyMutationExpr{
 			SourceSpan: node.SourceSpan,

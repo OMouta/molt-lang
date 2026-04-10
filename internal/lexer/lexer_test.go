@@ -373,7 +373,6 @@ func TestLexRejectsUnexpectedCharacters(t *testing.T) {
 	}{
 		{input: "@", message: "expected '{' after '@'"},
 		{input: "!", message: "unexpected character '!'"},
-		{input: "$", message: "unexpected character '$'"},
 	}
 
 	for _, tc := range tests {

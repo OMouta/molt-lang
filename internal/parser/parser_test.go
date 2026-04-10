@@ -104,7 +104,7 @@ func TestParseFunctionSyntax(t *testing.T) {
 }
 
 func TestParseQuoteMutationAndPostfixForms(t *testing.T) {
-	program := mustParse(t, "postfix.molt", "warp @{ 1 + 2 }\ncode ~{ + -> * }\nm1 ~ m2\nxs[0]\nuser.name\nusers[0].profile.name\nf(1, 2, 3)")
+	program := mustParse(t, "postfix.molt", "warp @{ 1 + 2 }\ncode ~{ ($x + 0) -> $x }\nm1 ~ m2\nxs[0]\nuser.name\nusers[0].profile.name\nf(1, 2, 3)")
 
 	if len(program.Expressions) != 7 {
 		t.Fatalf("program expression count = %d, want 7", len(program.Expressions))
@@ -126,10 +126,12 @@ func TestParseQuoteMutationAndPostfixForms(t *testing.T) {
 		t.Fatalf("mutation rule count = %d, want 1", len(mutation.Rules))
 	}
 
-	pattern := expectExpr[*ast.OperatorLiteral](t, mutation.Rules[0].Pattern)
-	replacement := expectExpr[*ast.OperatorLiteral](t, mutation.Rules[0].Replacement)
-	if pattern.Symbol != "+" || replacement.Symbol != "*" {
-		t.Fatalf("operator rule mismatch: %q -> %q", pattern.Symbol, replacement.Symbol)
+	pattern := expectExpr[*ast.GroupExpr](t, mutation.Rules[0].Pattern)
+	binary := expectExpr[*ast.BinaryExpr](t, pattern.Inner)
+	left := expectExpr[*ast.MutationCaptureExpr](t, binary.Left)
+	replacement := expectExpr[*ast.MutationCaptureExpr](t, mutation.Rules[0].Replacement)
+	if left.Name.Name != "x" || replacement.Name.Name != "x" {
+		t.Fatalf("capture rule mismatch: %q -> %q", left.Name.Name, replacement.Name.Name)
 	}
 
 	composed := expectExpr[*ast.ApplyMutationExpr](t, program.Expressions[2])
@@ -420,7 +422,7 @@ func TestParseLoopControlInsideConditionalBranches(t *testing.T) {
 }
 
 func TestParseMultiRuleMutationAndQuotedBlock(t *testing.T) {
-	program := mustParse(t, "meta.molt", "@{ x = 1\nx + 2 }\n~{ x -> y\n1 -> 2\n(a + b) -> (a * b) }")
+	program := mustParse(t, "meta.molt", "@{ x = 1\nx + 2 }\n~{ x -> y\n1 -> 2\n($x + 0) -> $x }")
 
 	if len(program.Expressions) != 2 {
 		t.Fatalf("program expression count = %d, want 2", len(program.Expressions))
@@ -446,8 +448,9 @@ func TestParseMultiRuleMutationAndQuotedBlock(t *testing.T) {
 	}
 
 	group := expectExpr[*ast.GroupExpr](t, mutation.Rules[2].Pattern)
-	if _, ok := group.Inner.(*ast.BinaryExpr); !ok {
-		t.Fatalf("third pattern inner = %T, want binary expression", group.Inner)
+	binary := expectExpr[*ast.BinaryExpr](t, group.Inner)
+	if _, ok := binary.Left.(*ast.MutationCaptureExpr); !ok {
+		t.Fatalf("third pattern left = %T, want mutation capture", binary.Left)
 	}
 }
 
@@ -609,6 +612,7 @@ func TestParseRejectsMalformedPrograms(t *testing.T) {
 		{name: "field access missing name", input: "value.", message: "expected field name after '.'"},
 		{name: "field access newline", input: "value.\nname", message: "expected field name after '.'"},
 		{name: "missing mutation arrow", input: "~{ x y }", message: "expected '->' in mutation rule"},
+		{name: "capture outside mutation", input: "$x", message: "capture patterns are only valid inside mutation rules"},
 		{name: "missing mutation operand", input: "code ~\nnext", message: "expected mutation after '~'"},
 		{name: "unquote outside quote", input: "~(code)", message: "unquote is only valid inside quotes"},
 		{name: "splice outside quote", input: "~[code]", message: "splice is only valid inside quotes"},

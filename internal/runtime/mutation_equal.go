@@ -113,6 +113,9 @@ func EqualExpr(left, right ast.Expr) bool {
 	case *ast.MutationLiteralExpr:
 		r, ok := right.(*ast.MutationLiteralExpr)
 		return ok && equalRules(l.Rules, r.Rules)
+	case *ast.MutationCaptureExpr:
+		r, ok := right.(*ast.MutationCaptureExpr)
+		return ok && EqualExpr(l.Name, r.Name)
 	case *ast.ApplyMutationExpr:
 		r, ok := right.(*ast.ApplyMutationExpr)
 		return ok && EqualExpr(l.Target, r.Target) && EqualExpr(l.Mutation, r.Mutation)

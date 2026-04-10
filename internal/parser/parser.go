@@ -9,9 +9,10 @@ import (
 )
 
 type Parser struct {
-	tokens     []lexer.Token
-	current    int
-	quoteDepth int
+	tokens        []lexer.Token
+	current       int
+	quoteDepth    int
+	mutationDepth int
 }
 
 func Parse(path, text string) (*ast.Program, error) {

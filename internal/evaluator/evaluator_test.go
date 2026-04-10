@@ -1194,6 +1194,22 @@ func TestEvaluateMutationLiteralCreatesMutationValueInOrder(t *testing.T) {
 	}
 }
 
+func TestEvaluateMutationCapturesRewriteReusableSubtrees(t *testing.T) {
+	result := mustEval(t, runtime.NewEnvironment(nil), "mutation_capture.molt", ""+
+		"value = 7\n"+
+		"simplify = ~{\n"+
+		"  ($x + 0) -> $x\n"+
+		"  (0 + $x) -> $x\n"+
+		"}\n"+
+		"eval(@{ 0 + (value + 0) } ~ simplify)",
+	)
+
+	number := expectValue[*runtime.NumberValue](t, result)
+	if number.Value != 7 {
+		t.Fatalf("result = %v, want 7", number.Value)
+	}
+}
+
 func TestEvaluateQuoteUnquoteRejectsNonCodeValues(t *testing.T) {
 	_, err := evalString(runtime.NewEnvironment(nil), "invalid_unquote.molt", ""+
 		"value = 1\n"+

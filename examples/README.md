@@ -3,6 +3,7 @@
 This directory contains runnable and test-verified `@molt` example programs.
 
 - `basic/basic_mutation.molt`
+- `basic/capture_mutation.molt`
 - `basic/compare_worlds.molt`
 - `basic/destructuring.molt`
 - `basic/records.molt`

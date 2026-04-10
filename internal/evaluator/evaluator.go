@@ -192,6 +192,8 @@ func (e *Evaluator) evalExpr(env *runtime.Environment, expr ast.Expr) (runtime.V
 		return nil, e.runtimeError(node, "splice is only valid inside quotes")
 	case *ast.MutationLiteralExpr:
 		return e.evalMutationLiteral(node)
+	case *ast.MutationCaptureExpr:
+		return nil, e.runtimeError(node, "capture patterns are only valid inside mutation rules")
 	case *ast.ApplyMutationExpr:
 		return e.evalApplyMutation(env, node)
 	default:

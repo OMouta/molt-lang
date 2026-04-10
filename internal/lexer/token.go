@@ -45,6 +45,7 @@ const (
 	Comma        Kind = ","
 	Colon        Kind = ":"
 	Dot          Kind = "."
+	Dollar       Kind = "$"
 
 	Assign        Kind = "="
 	Arrow         Kind = "->"

@@ -501,6 +501,8 @@ func formatExpr(expr ast.Expr, indent int) string {
 		return "~(" + formatExpr(node.Expression, indent) + ")"
 	case *ast.SpliceExpr:
 		return "~[" + formatExpr(node.Expression, indent) + "]"
+	case *ast.MutationCaptureExpr:
+		return "$" + node.Name.Name
 	case *ast.MutationLiteralExpr:
 		return formatMutationValue(&MutationValue{Rules: node.Rules}, indent)
 	case *ast.ApplyMutationExpr:

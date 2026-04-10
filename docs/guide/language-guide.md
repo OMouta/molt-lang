@@ -274,6 +274,7 @@ Mutation literals store ordered rewrite rules:
 m = ~{
   + -> *
   1 -> 2
+  ($x + 0) -> $x
 }
 ```
 
@@ -291,6 +292,9 @@ Supported matching forms:
 - identifier replacement: `x -> y`
 - literal replacement: `1 -> 2`
 - exact subtree replacement: `(a + b) -> (a * b)`
+- named captures in reusable patterns: `($x + 0) -> $x`
+
+`$name` binds one matched subtree and reuses it in the replacement template. Repeating the same capture name in one pattern requires the matched subtrees to be structurally equal.
 
 ## Builtins
 

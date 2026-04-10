@@ -46,6 +46,12 @@ func (p *Parser) parsePrimary() (ast.Expr, error) {
 	case p.match(lexer.Identifier):
 		token := p.previous()
 		return &ast.Identifier{SourceSpan: token.Span, Name: token.Value}, nil
+	case p.match(lexer.Dollar):
+		if !p.inMutationRule() {
+			return nil, p.errorAt(p.previous(), "capture patterns are only valid inside mutation rules")
+		}
+
+		return p.parseMutationCapture(p.previous())
 	case p.match(lexer.Export):
 		return p.parseExport(p.previous())
 	case p.match(lexer.Import):
@@ -541,7 +547,29 @@ func (p *Parser) parseMutationSide(pattern bool) (ast.Expr, error) {
 		}, nil
 	}
 
+	p.mutationDepth++
+	defer func() {
+		p.mutationDepth--
+	}()
+
 	return p.parseExpression()
+}
+
+func (p *Parser) parseMutationCapture(start lexer.Token) (ast.Expr, error) {
+	nameToken, err := p.consume(lexer.Identifier, "expected identifier after '$' in mutation capture")
+	if err != nil {
+		return nil, err
+	}
+
+	name := &ast.Identifier{
+		SourceSpan: nameToken.Span,
+		Name:       nameToken.Value,
+	}
+
+	return &ast.MutationCaptureExpr{
+		SourceSpan: p.mergeSpans(start.Span, nameToken.Span),
+		Name:       name,
+	}, nil
 }
 
 func (p *Parser) canParseBareOperator(pattern bool) bool {

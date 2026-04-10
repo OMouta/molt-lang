@@ -71,6 +71,8 @@ func (l *Lexer) nextToken() (Token, error) {
 		return l.token(Colon, start, ""), nil
 	case '.':
 		return l.token(Dot, start, ""), nil
+	case '$':
+		return l.token(Dollar, start, ""), nil
 	case '+':
 		return l.token(Plus, start, ""), nil
 	case '*':

@@ -72,6 +72,14 @@ func TestShowValueFormatsFunctionsCodeMutationsAndNativeFunctions(t *testing.T) 
 				Pattern:     &ast.NumberLiteral{Value: 1},
 				Replacement: &ast.NumberLiteral{Value: 2},
 			},
+			{
+				Pattern: &ast.BinaryExpr{
+					Left:     &ast.MutationCaptureExpr{Name: &ast.Identifier{Name: "x"}},
+					Operator: ast.BinaryAdd,
+					Right:    &ast.NumberLiteral{Value: 0},
+				},
+				Replacement: &ast.MutationCaptureExpr{Name: &ast.Identifier{Name: "x"}},
+			},
 		},
 	}
 
@@ -128,7 +136,7 @@ func TestShowValueFormatsFunctionsCodeMutationsAndNativeFunctions(t *testing.T) 
 		t.Fatalf("spliced code = %q, want %q", got, "@{ [0, ~[parts], 3] }")
 	}
 
-	wantMutation := "~{\n  x -> y\n  1 -> 2\n}"
+	wantMutation := "~{\n  x -> y\n  1 -> 2\n  ($x + 0) -> $x\n}"
 	if got := ShowValue(mutation); got != wantMutation {
 		t.Fatalf("mutation = %q, want %q", got, wantMutation)
 	}
