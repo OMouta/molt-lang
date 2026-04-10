@@ -39,19 +39,23 @@ func ValidateMutationRule(rule *ast.MutationRule) error {
 		return fmt.Errorf("invalid replacement: %w", err)
 	}
 
-	patternCaptures := make(map[string]struct{})
+	patternCaptures := make(mutationCaptureSet)
 	if err := collectMutationCaptures(rule.Pattern, patternCaptures); err != nil {
 		return fmt.Errorf("invalid pattern: %w", err)
 	}
 
-	replacementCaptures := make(map[string]struct{})
+	replacementCaptures := make(mutationCaptureSet)
 	if err := collectMutationCaptures(rule.Replacement, replacementCaptures); err != nil {
 		return fmt.Errorf("invalid replacement: %w", err)
 	}
 
-	for name := range replacementCaptures {
-		if _, ok := patternCaptures[name]; !ok {
+	for name, kind := range replacementCaptures {
+		patternKind, ok := patternCaptures[name]
+		if !ok {
 			return fmt.Errorf("invalid replacement: capture %q is not bound in the pattern", name)
+		}
+		if patternKind != kind {
+			return fmt.Errorf("invalid replacement: capture %q changes kind between pattern and replacement", name)
 		}
 	}
 

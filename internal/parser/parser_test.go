@@ -454,6 +454,34 @@ func TestParseMultiRuleMutationAndQuotedBlock(t *testing.T) {
 	}
 }
 
+func TestParseMutationWildcardAndRestForms(t *testing.T) {
+	program := mustParse(t, "mutation_patterns.molt", "~{ (_ + 0) -> 0\n[1, ...$tail, 3] -> [0, ...$tail] }")
+	if len(program.Expressions) != 1 {
+		t.Fatalf("program expression count = %d, want 1", len(program.Expressions))
+	}
+
+	mutation := expectExpr[*ast.MutationLiteralExpr](t, program.Expressions[0])
+	if len(mutation.Rules) != 2 {
+		t.Fatalf("mutation rule count = %d, want 2", len(mutation.Rules))
+	}
+
+	first := expectExpr[*ast.GroupExpr](t, mutation.Rules[0].Pattern)
+	firstBinary := expectExpr[*ast.BinaryExpr](t, first.Inner)
+	if _, ok := firstBinary.Left.(*ast.MutationWildcardExpr); !ok {
+		t.Fatalf("first pattern left = %T, want mutation wildcard", firstBinary.Left)
+	}
+
+	second := expectExpr[*ast.ListLiteral](t, mutation.Rules[1].Pattern)
+	if _, ok := second.Elements[1].(*ast.MutationRestCaptureExpr); !ok {
+		t.Fatalf("second pattern rest = %T, want mutation rest capture", second.Elements[1])
+	}
+
+	replacement := expectExpr[*ast.ListLiteral](t, mutation.Rules[1].Replacement)
+	if _, ok := replacement.Elements[1].(*ast.MutationRestCaptureExpr); !ok {
+		t.Fatalf("second replacement rest = %T, want mutation rest capture", replacement.Elements[1])
+	}
+}
+
 func TestParseQuoteUnquoteForms(t *testing.T) {
 	program := mustParse(t, "quote_unquote.molt", ""+
 		"part = @{ value }\n"+
@@ -613,6 +641,8 @@ func TestParseRejectsMalformedPrograms(t *testing.T) {
 		{name: "field access newline", input: "value.\nname", message: "expected field name after '.'"},
 		{name: "missing mutation arrow", input: "~{ x y }", message: "expected '->' in mutation rule"},
 		{name: "capture outside mutation", input: "$x", message: "capture patterns are only valid inside mutation rules"},
+		{name: "rest capture outside mutation", input: "...$xs", message: "rest captures are only valid inside mutation rules"},
+		{name: "rest capture missing name", input: "~{ [..., 1] -> [1] }", message: "expected '$name' after '...' in mutation rest capture"},
 		{name: "missing mutation operand", input: "code ~\nnext", message: "expected mutation after '~'"},
 		{name: "unquote outside quote", input: "~(code)", message: "unquote is only valid inside quotes"},
 		{name: "splice outside quote", input: "~[code]", message: "splice is only valid inside quotes"},

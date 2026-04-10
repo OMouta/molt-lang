@@ -255,6 +255,33 @@ func TestSpecExamples(t *testing.T) {
 		expectShownValue(t, value, "7")
 	})
 
+	t.Run("mutation wildcard and rest", func(t *testing.T) {
+		value, _ := mustExecuteProgram(t, "spec_mutation_rest.molt", ""+
+			"simplify = ~{\n"+
+			"  [1, ...$tail, 4] -> [0, ...$tail]\n"+
+			"}\n"+
+			"eval(@{ [1, 2, 3, 4] } ~ simplify)",
+		)
+		expectShownValue(t, value, `[0, 2, 3]`)
+	})
+
+	t.Run("metaprogramming hygiene", func(t *testing.T) {
+		_, output := mustExecuteProgram(t, "spec_hygiene.molt", ""+
+			"x = 2\n"+
+			"outer = 10\n"+
+			"fragment = @{ x + outer }\n"+
+			"maker = @{ fn(x) = ~(fragment) }\n"+
+			"f = eval(maker)\n"+
+			"print(f(5))\n"+
+			"wrap = ~{ $body -> fn(x) = $body }\n"+
+			"g = eval(@{ x + outer } ~ wrap)\n"+
+			"print(g(7))",
+		)
+		if output != "15\n17\n" {
+			t.Fatalf("output = %q, want %q", output, "15\n17\n")
+		}
+	})
+
 	t.Run("function mutation", func(t *testing.T) {
 		value, _ := mustExecuteProgram(t, "spec_function_mutation.molt", ""+
 			"fn add(a, b) = a + b\n"+

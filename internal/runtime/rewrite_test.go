@@ -63,6 +63,30 @@ func TestValidateMutationRuleRejectsUnsupportedForms(t *testing.T) {
 				Replacement: capture(identifier("x")),
 			},
 		},
+		{
+			name: "rest capture in non-sequence position",
+			rule: &ast.MutationRule{
+				SourceSpan:  span,
+				Pattern:     rest(identifier("xs")),
+				Replacement: number(1),
+			},
+		},
+		{
+			name: "mixed single and rest capture kinds",
+			rule: &ast.MutationRule{
+				SourceSpan:  span,
+				Pattern:     list(capture(identifier("x"))),
+				Replacement: list(rest(identifier("x"))),
+			},
+		},
+		{
+			name: "multiple rest captures in one sequence",
+			rule: &ast.MutationRule{
+				SourceSpan:  span,
+				Pattern:     list(rest(identifier("head")), rest(identifier("tail"))),
+				Replacement: number(1),
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -189,6 +213,82 @@ func TestApplyRuleRequiresRepeatedCapturesToMatchSameSubtree(t *testing.T) {
 	right := expectExpr[*ast.Identifier](t, bin.Right)
 	if left.Name != "a" || right.Name != "b" {
 		t.Fatalf("non-matching repeated capture changed expression unexpectedly")
+	}
+}
+
+func TestApplyRuleSupportsWildcardPatterns(t *testing.T) {
+	rewritten, err := ApplyRule(binary(number(1), "+", number(2)), rule(binary(wildcard(), "+", wildcard()), number(0)))
+	if err != nil {
+		t.Fatalf("ApplyRule returned error: %v", err)
+	}
+
+	result := expectExpr[*ast.NumberLiteral](t, rewritten)
+	if result.Value != 0 {
+		t.Fatalf("result = %v, want 0", result.Value)
+	}
+}
+
+func TestApplyRuleSupportsRestCapturePatternsAndSubstitution(t *testing.T) {
+	input := &ast.ListLiteral{
+		SourceSpan: helperSpan(),
+		Elements: []ast.Expr{
+			number(1),
+			number(2),
+			number(3),
+			number(4),
+		},
+	}
+
+	rewritten, err := ApplyRule(input, rule(list(number(1), rest(identifier("middle")), number(4)), list(number(0), rest(identifier("middle")))))
+	if err != nil {
+		t.Fatalf("ApplyRule returned error: %v", err)
+	}
+
+	output := expectExpr[*ast.ListLiteral](t, rewritten)
+	if len(output.Elements) != 3 {
+		t.Fatalf("element count = %d, want 3", len(output.Elements))
+	}
+
+	first := expectExpr[*ast.NumberLiteral](t, output.Elements[0])
+	second := expectExpr[*ast.NumberLiteral](t, output.Elements[1])
+	third := expectExpr[*ast.NumberLiteral](t, output.Elements[2])
+	if first.Value != 0 || second.Value != 2 || third.Value != 3 {
+		t.Fatalf("rest substitution mismatch")
+	}
+}
+
+func TestApplyRuleSupportsRestCapturePatternsInCallArguments(t *testing.T) {
+	input := &ast.CallExpr{
+		SourceSpan: helperSpan(),
+		Callee:     identifier("sum"),
+		Arguments:  []ast.Expr{number(0), number(1), number(2)},
+	}
+
+	rewritten, err := ApplyRule(input, rule(call(identifier("sum"), number(0), rest(identifier("args"))), call(identifier("sum"), rest(identifier("args")))))
+	if err != nil {
+		t.Fatalf("ApplyRule returned error: %v", err)
+	}
+
+	output := expectExpr[*ast.CallExpr](t, rewritten)
+	if len(output.Arguments) != 2 {
+		t.Fatalf("argument count = %d, want 2", len(output.Arguments))
+	}
+}
+
+func TestApplyRuleSupportsRestCapturePatternsInBlocks(t *testing.T) {
+	input := &ast.BlockExpr{
+		SourceSpan:  helperSpan(),
+		Expressions: []ast.Expr{identifier("a"), identifier("b"), identifier("done")},
+	}
+
+	rewritten, err := ApplyRule(input, rule(block(rest(identifier("steps")), identifier("done")), block(rest(identifier("steps")))))
+	if err != nil {
+		t.Fatalf("ApplyRule returned error: %v", err)
+	}
+
+	output := expectExpr[*ast.BlockExpr](t, rewritten)
+	if len(output.Expressions) != 2 {
+		t.Fatalf("expression count = %d, want 2", len(output.Expressions))
 	}
 }
 
@@ -496,6 +596,18 @@ func group(inner ast.Expr) *ast.GroupExpr {
 	return &ast.GroupExpr{SourceSpan: span, Inner: inner}
 }
 
+func list(items ...ast.Expr) *ast.ListLiteral {
+	return &ast.ListLiteral{SourceSpan: helperSpan(), Elements: items}
+}
+
+func block(items ...ast.Expr) *ast.BlockExpr {
+	return &ast.BlockExpr{SourceSpan: helperSpan(), Expressions: items}
+}
+
+func call(callee ast.Expr, args ...ast.Expr) *ast.CallExpr {
+	return &ast.CallExpr{SourceSpan: helperSpan(), Callee: callee, Arguments: args}
+}
+
 func rule(pattern, replacement ast.Expr) *ast.MutationRule {
 	span := helperSpan()
 	return &ast.MutationRule{SourceSpan: span, Pattern: pattern, Replacement: replacement}
@@ -509,6 +621,23 @@ func capture(name ast.Expr) ast.Expr {
 	}
 
 	return &ast.MutationCaptureExpr{
+		SourceSpan: span,
+		Name:       &ast.Identifier{SourceSpan: ident.SourceSpan, Name: ident.Name},
+	}
+}
+
+func wildcard() ast.Expr {
+	return &ast.MutationWildcardExpr{SourceSpan: helperSpan()}
+}
+
+func rest(name ast.Expr) ast.Expr {
+	span := helperSpan()
+	ident, ok := name.(*ast.Identifier)
+	if !ok {
+		return &ast.MutationRestCaptureExpr{SourceSpan: span}
+	}
+
+	return &ast.MutationRestCaptureExpr{
 		SourceSpan: span,
 		Name:       &ast.Identifier{SourceSpan: ident.SourceSpan, Name: ident.Name},
 	}

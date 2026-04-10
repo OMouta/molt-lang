@@ -73,7 +73,7 @@ warp @{ 1 + 2 } ~ other != stuff <= more >= less < x > y
 }
 
 func TestLexMaximalMunchForOperatorsAndIntroducers(t *testing.T) {
-	tokens, err := Lex("operators.molt", "@{ ~{ -> . - == != <= >= < > = ~")
+	tokens, err := Lex("operators.molt", "@{ ~{ -> ... . - == != <= >= < > = ~ $")
 	if err != nil {
 		t.Fatalf("Lex returned error: %v", err)
 	}
@@ -82,6 +82,7 @@ func TestLexMaximalMunchForOperatorsAndIntroducers(t *testing.T) {
 		QuoteStart,
 		MutationStart,
 		Arrow,
+		Ellipsis,
 		Dot,
 		Minus,
 		EqualEqual,
@@ -92,6 +93,7 @@ func TestLexMaximalMunchForOperatorsAndIntroducers(t *testing.T) {
 		Greater,
 		Assign,
 		Tilde,
+		Dollar,
 		EOF,
 	}
 
@@ -264,6 +266,30 @@ func TestLexRecognizesMatchSyntax(t *testing.T) {
 	checkTokenValue(t, tokens[9], "_")
 }
 
+func TestLexRecognizesMutationCaptureSyntax(t *testing.T) {
+	tokens, err := Lex("mutation_capture.molt", "~{ (_ + 0) -> _\n[1, ...$tail, 3] -> [0, ...$tail] }")
+	if err != nil {
+		t.Fatalf("Lex returned error: %v", err)
+	}
+
+	want := []Kind{
+		MutationStart, LeftParen, Identifier, Plus, Number, RightParen, Arrow, Identifier,
+		LeftBracket, Number, Comma, Ellipsis, Dollar, Identifier, Comma, Number, RightBracket,
+		Arrow, LeftBracket, Number, Comma, Ellipsis, Dollar, Identifier, RightBracket,
+		RightBrace, EOF,
+	}
+
+	if len(tokens) != len(want) {
+		t.Fatalf("token count = %d, want %d", len(tokens), len(want))
+	}
+
+	for i := range want {
+		if tokens[i].Kind != want[i] {
+			t.Fatalf("token[%d] kind = %s, want %s", i, tokens[i].Kind, want[i])
+		}
+	}
+}
+
 func TestLexRecognizesFieldAccessSyntax(t *testing.T) {
 	tokens, err := Lex("field_access.molt", `profile.name`)
 	if err != nil {
@@ -373,6 +399,7 @@ func TestLexRejectsUnexpectedCharacters(t *testing.T) {
 	}{
 		{input: "@", message: "expected '{' after '@'"},
 		{input: "!", message: "unexpected character '!'"},
+		{input: "..", message: "unexpected character '.'"},
 	}
 
 	for _, tc := range tests {

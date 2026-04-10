@@ -194,6 +194,10 @@ func (e *Evaluator) evalExpr(env *runtime.Environment, expr ast.Expr) (runtime.V
 		return e.evalMutationLiteral(node)
 	case *ast.MutationCaptureExpr:
 		return nil, e.runtimeError(node, "capture patterns are only valid inside mutation rules")
+	case *ast.MutationWildcardExpr:
+		return nil, e.runtimeError(node, "wildcards are only valid inside mutation rule patterns")
+	case *ast.MutationRestCaptureExpr:
+		return nil, e.runtimeError(node, "rest captures are only valid inside mutation rules")
 	case *ast.ApplyMutationExpr:
 		return e.evalApplyMutation(env, node)
 	default:

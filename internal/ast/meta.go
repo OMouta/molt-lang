@@ -50,6 +50,21 @@ type MutationCaptureExpr struct {
 func (n *MutationCaptureExpr) Span() source.Span { return n.SourceSpan }
 func (*MutationCaptureExpr) exprNode()           {}
 
+type MutationWildcardExpr struct {
+	SourceSpan source.Span
+}
+
+func (n *MutationWildcardExpr) Span() source.Span { return n.SourceSpan }
+func (*MutationWildcardExpr) exprNode()           {}
+
+type MutationRestCaptureExpr struct {
+	SourceSpan source.Span
+	Name       *Identifier
+}
+
+func (n *MutationRestCaptureExpr) Span() source.Span { return n.SourceSpan }
+func (*MutationRestCaptureExpr) exprNode()           {}
+
 type ApplyMutationExpr struct {
 	SourceSpan source.Span
 	Target     Expr

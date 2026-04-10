@@ -232,7 +232,9 @@ func (e *Evaluator) validateQuoteExpr(expr ast.Expr, context quoteValidationCont
 		*ast.BreakExpr,
 		*ast.ContinueExpr,
 		*ast.Identifier,
-		*ast.MutationCaptureExpr:
+		*ast.MutationCaptureExpr,
+		*ast.MutationWildcardExpr,
+		*ast.MutationRestCaptureExpr:
 		return nil
 	case *ast.ExportExpr:
 		return e.validateQuoteExpr(node.Name, quoteValidationExpr)
@@ -412,7 +414,9 @@ func (e *Evaluator) interpolateQuoteExpr(env *runtime.Environment, expr ast.Expr
 		*ast.BreakExpr,
 		*ast.ContinueExpr,
 		*ast.Identifier,
-		*ast.MutationCaptureExpr:
+		*ast.MutationCaptureExpr,
+		*ast.MutationWildcardExpr,
+		*ast.MutationRestCaptureExpr:
 		return runtime.CloneExpr(node), nil
 	case *ast.ExportExpr:
 		return &ast.ExportExpr{

@@ -87,6 +87,10 @@ func (p *Parser) inMutationRule() bool {
 	return p.mutationDepth > 0
 }
 
+func (p *Parser) inMutationPattern() bool {
+	return p.mutationPatternDepth > 0
+}
+
 func (p *Parser) consume(kind lexer.Kind, message string) (lexer.Token, error) {
 	if p.check(kind) {
 		return p.advance(), nil

@@ -1,0 +1,5 @@
+simplify = ~{
+  [1, ...$tail, 4] -> [0, ...$tail]
+}
+
+print(eval(@{ [1, 2, 3, 4] } ~ simplify))

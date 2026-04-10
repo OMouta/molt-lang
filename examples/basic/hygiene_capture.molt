@@ -1,0 +1,11 @@
+x = 2
+outer = 10
+
+fragment = @{ x + outer }
+maker = @{ fn(x) = ~(fragment) }
+f = eval(maker)
+print(f(5))
+
+wrap = ~{ $body -> fn(x) = $body }
+g = eval(@{ x + outer } ~ wrap)
+print(g(7))

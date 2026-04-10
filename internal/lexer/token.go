@@ -45,6 +45,7 @@ const (
 	Comma        Kind = ","
 	Colon        Kind = ":"
 	Dot          Kind = "."
+	Ellipsis     Kind = "..."
 	Dollar       Kind = "$"
 
 	Assign        Kind = "="

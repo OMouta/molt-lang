@@ -45,6 +45,10 @@ func (p *Parser) parsePrimary() (ast.Expr, error) {
 		return &ast.ContinueExpr{SourceSpan: p.previous().Span}, nil
 	case p.match(lexer.Identifier):
 		token := p.previous()
+		if token.Value == "_" && p.inMutationPattern() {
+			return &ast.MutationWildcardExpr{SourceSpan: token.Span}, nil
+		}
+
 		return &ast.Identifier{SourceSpan: token.Span, Name: token.Value}, nil
 	case p.match(lexer.Dollar):
 		if !p.inMutationRule() {
@@ -52,6 +56,12 @@ func (p *Parser) parsePrimary() (ast.Expr, error) {
 		}
 
 		return p.parseMutationCapture(p.previous())
+	case p.match(lexer.Ellipsis):
+		if !p.inMutationRule() {
+			return nil, p.errorAt(p.previous(), "rest captures are only valid inside mutation rules")
+		}
+
+		return p.parseMutationRestCapture(p.previous())
 	case p.match(lexer.Export):
 		return p.parseExport(p.previous())
 	case p.match(lexer.Import):
@@ -548,8 +558,14 @@ func (p *Parser) parseMutationSide(pattern bool) (ast.Expr, error) {
 	}
 
 	p.mutationDepth++
+	if pattern {
+		p.mutationPatternDepth++
+	}
 	defer func() {
 		p.mutationDepth--
+		if pattern {
+			p.mutationPatternDepth--
+		}
 	}()
 
 	return p.parseExpression()
@@ -567,6 +583,27 @@ func (p *Parser) parseMutationCapture(start lexer.Token) (ast.Expr, error) {
 	}
 
 	return &ast.MutationCaptureExpr{
+		SourceSpan: p.mergeSpans(start.Span, nameToken.Span),
+		Name:       name,
+	}, nil
+}
+
+func (p *Parser) parseMutationRestCapture(start lexer.Token) (ast.Expr, error) {
+	if _, err := p.consume(lexer.Dollar, "expected '$name' after '...' in mutation rest capture"); err != nil {
+		return nil, err
+	}
+
+	nameToken, err := p.consume(lexer.Identifier, "expected identifier after '$' in mutation rest capture")
+	if err != nil {
+		return nil, err
+	}
+
+	name := &ast.Identifier{
+		SourceSpan: nameToken.Span,
+		Name:       nameToken.Value,
+	}
+
+	return &ast.MutationRestCaptureExpr{
 		SourceSpan: p.mergeSpans(start.Span, nameToken.Span),
 		Name:       name,
 	}, nil

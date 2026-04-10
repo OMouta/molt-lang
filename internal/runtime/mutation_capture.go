@@ -6,23 +6,39 @@ import (
 	"molt/internal/ast"
 )
 
-type mutationCaptures map[string]ast.Expr
+type mutationCaptureKind string
 
-func collectMutationCaptures(expr ast.Expr, captures map[string]struct{}) error {
+const (
+	mutationCaptureSingle mutationCaptureKind = "single"
+	mutationCaptureRest   mutationCaptureKind = "rest"
+)
+
+type mutationCaptureSet map[string]mutationCaptureKind
+
+type mutationCaptures struct {
+	singles map[string]ast.Expr
+	rests   map[string][]ast.Expr
+}
+
+func newMutationCaptures() mutationCaptures {
+	return mutationCaptures{
+		singles: make(map[string]ast.Expr),
+		rests:   make(map[string][]ast.Expr),
+	}
+}
+
+func collectMutationCaptures(expr ast.Expr, captures mutationCaptureSet) error {
 	if expr == nil {
 		return nil
 	}
 
 	switch node := expr.(type) {
 	case *ast.MutationCaptureExpr:
-		if node.Name == nil {
-			return fmt.Errorf("capture name cannot be nil")
-		}
-		if node.Name.Name == "_" {
-			return fmt.Errorf("capture name cannot be '_'")
-		}
-		captures[node.Name.Name] = struct{}{}
+		return recordMutationCapture(captures, mutationCaptureSingle, node.Name, "capture")
+	case *ast.MutationWildcardExpr:
 		return nil
+	case *ast.MutationRestCaptureExpr:
+		return recordMutationCapture(captures, mutationCaptureRest, node.Name, "rest capture")
 	case *ast.OperatorLiteral,
 		*ast.NumberLiteral,
 		*ast.StringLiteral,
@@ -39,12 +55,7 @@ func collectMutationCaptures(expr ast.Expr, captures map[string]struct{}) error 
 	case *ast.GroupExpr:
 		return collectMutationCaptures(node.Inner, captures)
 	case *ast.ListLiteral:
-		for _, element := range node.Elements {
-			if err := collectMutationCaptures(element, captures); err != nil {
-				return err
-			}
-		}
-		return nil
+		return collectMutationCaptureSlice(node.Elements, captures)
 	case *ast.ListBindingPattern:
 		for _, element := range node.Elements {
 			if err := collectMutationCaptures(element, captures); err != nil {
@@ -73,12 +84,7 @@ func collectMutationCaptures(expr ast.Expr, captures map[string]struct{}) error 
 		}
 		return nil
 	case *ast.BlockExpr:
-		for _, inner := range node.Expressions {
-			if err := collectMutationCaptures(inner, captures); err != nil {
-				return err
-			}
-		}
-		return nil
+		return collectMutationCaptureSlice(node.Expressions, captures)
 	case *ast.AssignmentExpr:
 		if err := collectMutationCaptures(node.Target, captures); err != nil {
 			return err
@@ -139,12 +145,7 @@ func collectMutationCaptures(expr ast.Expr, captures map[string]struct{}) error 
 		if err := collectMutationCaptures(node.Callee, captures); err != nil {
 			return err
 		}
-		for _, argument := range node.Arguments {
-			if err := collectMutationCaptures(argument, captures); err != nil {
-				return err
-			}
-		}
-		return nil
+		return collectMutationCaptureSlice(node.Arguments, captures)
 	case *ast.NamedFunctionExpr:
 		if err := collectMutationCaptures(node.Name, captures); err != nil {
 			return err
@@ -177,6 +178,30 @@ func collectMutationCaptures(expr ast.Expr, captures map[string]struct{}) error 
 	}
 }
 
+func recordMutationCapture(captures mutationCaptureSet, kind mutationCaptureKind, name *ast.Identifier, label string) error {
+	if name == nil {
+		return fmt.Errorf("%s name cannot be nil", label)
+	}
+	if name.Name == "_" {
+		return fmt.Errorf("%s name cannot be '_'", label)
+	}
+	if existing, ok := captures[name.Name]; ok && existing != kind {
+		return fmt.Errorf("capture %q cannot be used as both single and rest capture", name.Name)
+	}
+	captures[name.Name] = kind
+	return nil
+}
+
+func collectMutationCaptureSlice(items []ast.Expr, captures mutationCaptureSet) error {
+	for _, item := range items {
+		if err := collectMutationCaptures(item, captures); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func matchMutationExpr(pattern, target ast.Expr, captures mutationCaptures) bool {
 	if pattern == nil || target == nil {
 		return pattern == nil && target == nil
@@ -187,10 +212,8 @@ func matchMutationExpr(pattern, target ast.Expr, captures mutationCaptures) bool
 		if p.Name == nil {
 			return false
 		}
-		if existing, seen := captures[p.Name.Name]; seen {
-			return EqualExpr(existing, target)
-		}
-		captures[p.Name.Name] = target
+		return captures.bindSingle(p.Name.Name, target)
+	case *ast.MutationWildcardExpr:
 		return true
 	case *ast.OperatorLiteral:
 		t, ok := target.(*ast.OperatorLiteral)
@@ -324,6 +347,28 @@ func matchMutationExpr(pattern, target ast.Expr, captures mutationCaptures) bool
 	}
 }
 
+func (c mutationCaptures) bindSingle(name string, expr ast.Expr) bool {
+	if _, seen := c.rests[name]; seen {
+		return false
+	}
+	if existing, seen := c.singles[name]; seen {
+		return EqualExpr(existing, expr)
+	}
+	c.singles[name] = expr
+	return true
+}
+
+func (c mutationCaptures) bindRest(name string, exprs []ast.Expr) bool {
+	if _, seen := c.singles[name]; seen {
+		return false
+	}
+	if existing, seen := c.rests[name]; seen {
+		return equalExprSlices(existing, exprs)
+	}
+	c.rests[name] = cloneExprs(exprs)
+	return true
+}
+
 func instantiateMutationExpr(expr ast.Expr, captures mutationCaptures) ast.Expr {
 	if expr == nil {
 		return nil
@@ -334,11 +379,15 @@ func instantiateMutationExpr(expr ast.Expr, captures mutationCaptures) ast.Expr 
 		if node.Name == nil {
 			panic("missing mutation capture name during replacement instantiation")
 		}
-		captured, exists := captures[node.Name.Name]
+		captured, exists := captures.singles[node.Name.Name]
 		if !exists {
 			panic(fmt.Sprintf("missing mutation capture %q during replacement instantiation", node.Name.Name))
 		}
 		return CloneExpr(captured)
+	case *ast.MutationWildcardExpr:
+		panic("mutation wildcard is not valid in replacement expressions")
+	case *ast.MutationRestCaptureExpr:
+		panic("mutation rest capture must be instantiated in a sequence position")
 	case *ast.OperatorLiteral,
 		*ast.NumberLiteral,
 		*ast.StringLiteral,
@@ -361,11 +410,7 @@ func instantiateMutationExpr(expr ast.Expr, captures mutationCaptures) ast.Expr 
 	case *ast.GroupExpr:
 		return &ast.GroupExpr{SourceSpan: node.SourceSpan, Inner: instantiateMutationExpr(node.Inner, captures)}
 	case *ast.ListLiteral:
-		elements := make([]ast.Expr, 0, len(node.Elements))
-		for _, element := range node.Elements {
-			elements = append(elements, instantiateMutationExpr(element, captures))
-		}
-		return &ast.ListLiteral{SourceSpan: node.SourceSpan, Elements: elements}
+		return &ast.ListLiteral{SourceSpan: node.SourceSpan, Elements: instantiateMutationExprSlice(node.Elements, captures)}
 	case *ast.ListBindingPattern:
 		elements := make([]ast.BindingPattern, 0, len(node.Elements))
 		for _, element := range node.Elements {
@@ -393,11 +438,7 @@ func instantiateMutationExpr(expr ast.Expr, captures mutationCaptures) ast.Expr 
 		}
 		return &ast.RecordBindingPattern{SourceSpan: node.SourceSpan, Fields: fields}
 	case *ast.BlockExpr:
-		expressions := make([]ast.Expr, 0, len(node.Expressions))
-		for _, item := range node.Expressions {
-			expressions = append(expressions, instantiateMutationExpr(item, captures))
-		}
-		return &ast.BlockExpr{SourceSpan: node.SourceSpan, Expressions: expressions}
+		return &ast.BlockExpr{SourceSpan: node.SourceSpan, Expressions: instantiateMutationExprSlice(node.Expressions, captures)}
 	case *ast.AssignmentExpr:
 		return &ast.AssignmentExpr{
 			SourceSpan: node.SourceSpan,
@@ -464,10 +505,7 @@ func instantiateMutationExpr(expr ast.Expr, captures mutationCaptures) ast.Expr 
 			Body:       instantiateMutationExpr(node.Body, captures),
 		}
 	case *ast.CallExpr:
-		args := make([]ast.Expr, 0, len(node.Arguments))
-		for _, argument := range node.Arguments {
-			args = append(args, instantiateMutationExpr(argument, captures))
-		}
+		args := instantiateMutationExprSlice(node.Arguments, captures)
 		return &ast.CallExpr{
 			SourceSpan: node.SourceSpan,
 			Callee:     instantiateMutationExpr(node.Callee, captures),
@@ -497,18 +535,74 @@ func instantiateMutationExpr(expr ast.Expr, captures mutationCaptures) ast.Expr 
 	}
 }
 
+func instantiateMutationExprSlice(items []ast.Expr, captures mutationCaptures) []ast.Expr {
+	instantiated := make([]ast.Expr, 0, len(items))
+	for _, item := range items {
+		if rest, ok := item.(*ast.MutationRestCaptureExpr); ok {
+			if rest.Name == nil {
+				panic("missing mutation rest capture name during replacement instantiation")
+			}
+			captured, exists := captures.rests[rest.Name.Name]
+			if !exists {
+				panic(fmt.Sprintf("missing mutation rest capture %q during replacement instantiation", rest.Name.Name))
+			}
+			instantiated = append(instantiated, cloneExprs(captured)...)
+			continue
+		}
+
+		instantiated = append(instantiated, instantiateMutationExpr(item, captures))
+	}
+
+	return instantiated
+}
+
 func matchMutationExprSlice(patterns, targets []ast.Expr, captures mutationCaptures) bool {
-	if len(patterns) != len(targets) {
+	restIndex := -1
+	var rest *ast.MutationRestCaptureExpr
+	for i, pattern := range patterns {
+		if current, ok := pattern.(*ast.MutationRestCaptureExpr); ok {
+			restIndex = i
+			rest = current
+			break
+		}
+	}
+
+	if restIndex < 0 {
+		if len(patterns) != len(targets) {
+			return false
+		}
+		for i := range patterns {
+			if !matchMutationExpr(patterns[i], targets[i], captures) {
+				return false
+			}
+		}
+		return true
+	}
+
+	required := len(patterns) - 1
+	if len(targets) < required {
 		return false
 	}
 
-	for i := range patterns {
+	for i := 0; i < restIndex; i++ {
 		if !matchMutationExpr(patterns[i], targets[i], captures) {
 			return false
 		}
 	}
 
-	return true
+	suffixCount := len(patterns) - restIndex - 1
+	suffixStart := len(targets) - suffixCount
+	for i := 0; i < suffixCount; i++ {
+		if !matchMutationExpr(patterns[restIndex+1+i], targets[suffixStart+i], captures) {
+			return false
+		}
+	}
+
+	if rest == nil || rest.Name == nil {
+		return false
+	}
+
+	return captures.bindRest(rest.Name.Name, targets[restIndex:suffixStart])
 }
 
 func matchMutationIdentifiers(patterns, targets []*ast.Identifier, captures mutationCaptures) bool {

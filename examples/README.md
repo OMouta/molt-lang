@@ -6,8 +6,10 @@ This directory contains runnable and test-verified `@molt` example programs.
 - `basic/capture_mutation.molt`
 - `basic/compare_worlds.molt`
 - `basic/destructuring.molt`
+- `basic/hygiene_capture.molt`
 - `basic/records.molt`
 - `basic/variant_gallery.molt`
+- `basic/wildcard_rest_mutation.molt`
 
 - `errors/error_values.molt`
 - `errors/try_catch.molt`

@@ -7,7 +7,7 @@ import (
 )
 
 func rewriteWithRule(expr ast.Expr, rule *ast.MutationRule) (ast.Expr, bool) {
-	captures := mutationCaptures{}
+	captures := newMutationCaptures()
 	if matchMutationExpr(rule.Pattern, expr, captures) {
 		return instantiateMutationExpr(rule.Replacement, captures), true
 	}
@@ -304,8 +304,11 @@ func validateMutationExpr(expr ast.Expr) error {
 		*ast.BreakExpr,
 		*ast.ContinueExpr,
 		*ast.Identifier,
-		*ast.MutationCaptureExpr:
+		*ast.MutationCaptureExpr,
+		*ast.MutationWildcardExpr:
 		return nil
+	case *ast.MutationRestCaptureExpr:
+		return fmt.Errorf("rest captures are only allowed in list, call, or block sequence positions")
 	case *ast.ExportExpr:
 		return validateMutationExpr(node.Name)
 	case *ast.ImportExpr:
@@ -313,12 +316,7 @@ func validateMutationExpr(expr ast.Expr) error {
 	case *ast.GroupExpr:
 		return validateMutationExpr(node.Inner)
 	case *ast.ListLiteral:
-		for _, element := range node.Elements {
-			if err := validateMutationExpr(element); err != nil {
-				return err
-			}
-		}
-		return nil
+		return validateMutationExprSlice(node.Elements, true)
 	case *ast.ListBindingPattern:
 		for _, element := range node.Elements {
 			if err := validateMutationExpr(element); err != nil {
@@ -347,12 +345,7 @@ func validateMutationExpr(expr ast.Expr) error {
 		}
 		return nil
 	case *ast.BlockExpr:
-		for _, inner := range node.Expressions {
-			if err := validateMutationExpr(inner); err != nil {
-				return err
-			}
-		}
-		return nil
+		return validateMutationExprSlice(node.Expressions, true)
 	case *ast.AssignmentExpr:
 		if err := validateMutationExpr(node.Target); err != nil {
 			return err
@@ -413,12 +406,7 @@ func validateMutationExpr(expr ast.Expr) error {
 		if err := validateMutationExpr(node.Callee); err != nil {
 			return err
 		}
-		for _, argument := range node.Arguments {
-			if err := validateMutationExpr(argument); err != nil {
-				return err
-			}
-		}
-		return nil
+		return validateMutationExprSlice(node.Arguments, true)
 	case *ast.NamedFunctionExpr:
 		if err := validateMutationExpr(node.Name); err != nil {
 			return err
@@ -449,6 +437,28 @@ func validateMutationExpr(expr ast.Expr) error {
 	default:
 		return fmt.Errorf("unsupported mutation expression type %T", expr)
 	}
+}
+
+func validateMutationExprSlice(items []ast.Expr, allowRest bool) error {
+	seenRest := false
+	for _, item := range items {
+		if _, ok := item.(*ast.MutationRestCaptureExpr); ok {
+			if !allowRest {
+				return fmt.Errorf("rest captures are not allowed in this position")
+			}
+			if seenRest {
+				return fmt.Errorf("only one rest capture is allowed in a sequence pattern")
+			}
+			seenRest = true
+			continue
+		}
+
+		if err := validateMutationExpr(item); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func rewriteUnaryOperator(operator ast.UnaryOperator, rule *ast.MutationRule) (ast.UnaryOperator, bool) {

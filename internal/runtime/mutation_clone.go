@@ -141,6 +141,10 @@ func CloneExpr(expr ast.Expr) ast.Expr {
 		return &ast.MutationLiteralExpr{SourceSpan: node.SourceSpan, Rules: CloneRules(node.Rules)}
 	case *ast.MutationCaptureExpr:
 		return &ast.MutationCaptureExpr{SourceSpan: node.SourceSpan, Name: cloneIdentifier(node.Name)}
+	case *ast.MutationWildcardExpr:
+		return &ast.MutationWildcardExpr{SourceSpan: node.SourceSpan}
+	case *ast.MutationRestCaptureExpr:
+		return &ast.MutationRestCaptureExpr{SourceSpan: node.SourceSpan, Name: cloneIdentifier(node.Name)}
 	case *ast.ApplyMutationExpr:
 		return &ast.ApplyMutationExpr{
 			SourceSpan: node.SourceSpan,

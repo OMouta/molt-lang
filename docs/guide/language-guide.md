@@ -234,6 +234,21 @@ Use `~(expr)` when you want to insert exactly one AST node. Use `~[expr]` when y
 
 When a quote contains interpolation, `show(code)` keeps the original `~(...)` and `~[...]` template instead of only showing the expanded result. That makes generated code easier to debug without changing what `eval(code)` executes.
 
+Quotes are not automatically hygienic. Interpolated syntax is inserted into the final quoted program and resolves names in that generated lexical scope when `eval(code)` runs.
+
+```txt
+x = 2
+outer = 10
+fragment = @{ x + outer }
+maker = @{ fn(x) = ~(fragment) }
+f = eval(maker)
+f(5)   # 15
+```
+
+In that example, the inserted `x` from `fragment` resolves to the generated function parameter, while `outer` still comes from the outer quote's captured environment.
+
+As a safety rail, interpolation stays in ordinary expression positions. You cannot directly interpolate new assignment targets, destructuring binders, function parameter names, or other binding-introducing slots.
+
 ## Imports
 
 Imports load another local `.molt` file relative to the importing file:
@@ -275,6 +290,7 @@ m = ~{
   + -> *
   1 -> 2
   ($x + 0) -> $x
+  [1, ...$tail, 4] -> [0, ...$tail]
 }
 ```
 
@@ -293,8 +309,24 @@ Supported matching forms:
 - literal replacement: `1 -> 2`
 - exact subtree replacement: `(a + b) -> (a * b)`
 - named captures in reusable patterns: `($x + 0) -> $x`
+- wildcard matches: `(_ + 0) -> 0`
+- rest captures in list, block, and call-argument sequences: `[1, ...$tail, 4] -> [0, ...$tail]`
 
 `$name` binds one matched subtree and reuses it in the replacement template. Repeating the same capture name in one pattern requires the matched subtrees to be structurally equal.
+
+`_` matches any single subtree without binding it. `...$name` matches zero or more sibling expressions in list literal elements, block expression sequences, and call argument lists. Only one rest capture is allowed in a single sequence pattern, and a rest capture must stay a rest capture when reused in the replacement.
+
+Mutation substitution follows the same non-hygienic rule as quote interpolation: captured syntax is reinserted as syntax, not as a closure over its old identifier meanings.
+
+```txt
+x = 2
+outer = 10
+wrap = ~{ $body -> fn(x) = $body }
+f = eval(@{ x + outer } ~ wrap)
+f(7)   # 17
+```
+
+Here the generated parameter `x` shadows the free `x` inside `$body`, while `outer` still resolves through the code value's captured environment.
 
 ## Builtins
 

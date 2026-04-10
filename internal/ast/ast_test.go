@@ -38,6 +38,9 @@ var (
 	_ Expr             = (*UnquoteExpr)(nil)
 	_ Expr             = (*SpliceExpr)(nil)
 	_ Expr             = (*MutationLiteralExpr)(nil)
+	_ Expr             = (*MutationCaptureExpr)(nil)
+	_ Expr             = (*MutationWildcardExpr)(nil)
+	_ Expr             = (*MutationRestCaptureExpr)(nil)
 	_ Expr             = (*ApplyMutationExpr)(nil)
 	_ Expr             = (*ListBindingPattern)(nil)
 	_ Expr             = (*RecordBindingPattern)(nil)
@@ -70,6 +73,9 @@ func TestLiteralIdentifierAndListNodesPreserveSpansAndPayloads(t *testing.T) {
 	listBinding := &ListBindingPattern{SourceSpan: span, Elements: []BindingPattern{ident}}
 	recordBindingField := &RecordBindingField{SourceSpan: span, Name: ident, Value: listBinding}
 	recordBinding := &RecordBindingPattern{SourceSpan: span, Fields: []*RecordBindingField{recordBindingField}}
+	mutationCapture := &MutationCaptureExpr{SourceSpan: span, Name: ident}
+	mutationWildcard := &MutationWildcardExpr{SourceSpan: span}
+	mutationRest := &MutationRestCaptureExpr{SourceSpan: span, Name: ident}
 
 	assertSpan(t, number, span)
 	assertSpan(t, str, span)
@@ -85,6 +91,9 @@ func TestLiteralIdentifierAndListNodesPreserveSpansAndPayloads(t *testing.T) {
 	assertSpan(t, listBinding, span)
 	assertSpan(t, recordBindingField, span)
 	assertSpan(t, recordBinding, span)
+	assertSpan(t, mutationCapture, span)
+	assertSpan(t, mutationWildcard, span)
+	assertSpan(t, mutationRest, span)
 
 	if number.Value != 3.14 {
 		t.Fatalf("number value = %v, want 3.14", number.Value)

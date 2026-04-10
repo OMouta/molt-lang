@@ -70,6 +70,14 @@ func (l *Lexer) nextToken() (Token, error) {
 	case ':':
 		return l.token(Colon, start, ""), nil
 	case '.':
+		if l.cursor.match('.') {
+			if l.cursor.match('.') {
+				return l.token(Ellipsis, start, ""), nil
+			}
+
+			return Token{}, l.errorSpan("unexpected character '.'", start, l.cursor.offset)
+		}
+
 		return l.token(Dot, start, ""), nil
 	case '$':
 		return l.token(Dollar, start, ""), nil

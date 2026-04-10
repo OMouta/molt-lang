@@ -40,6 +40,12 @@ func TestRegressionPrograms(t *testing.T) {
 			wantOutput: "[1, 2, 3]\n[\"molt\", 4]\n",
 		},
 		{
+			name:       "hygiene capture example",
+			path:       "examples/basic/hygiene_capture.molt",
+			wantValue:  "nil",
+			wantOutput: "15\n17\n",
+		},
+		{
 			name:       "match example",
 			path:       "examples/basic/match.molt",
 			wantValue:  "nil",

@@ -29,6 +29,11 @@ func TestCLISmokeExamples(t *testing.T) {
 			wantOutput: "record { name: \"molt\", stats: record { runs: 4 }, age: 2 }\nmolt\n4\n2\n[\"name\", \"stats\", \"age\"]\n[\"molt\", record { runs: 4 }, 2]\ntrue\n3\nrecord\n",
 		},
 		{
+			name:       "hygiene capture",
+			path:       "examples/basic/hygiene_capture.molt",
+			wantOutput: "15\n17\n",
+		},
+		{
 			name:       "match",
 			path:       "examples/basic/match.molt",
 			wantOutput: "two\nmolt\nno\n",

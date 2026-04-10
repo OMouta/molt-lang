@@ -1210,6 +1210,28 @@ func TestEvaluateMutationCapturesRewriteReusableSubtrees(t *testing.T) {
 	}
 }
 
+func TestEvaluateMutationWildcardsAndRestCaptures(t *testing.T) {
+	result := mustEval(t, runtime.NewEnvironment(nil), "mutation_rest.molt", ""+
+		"simplify = ~{\n"+
+		"  (_ + 0) -> 0\n"+
+		"  [1, ...$tail, 4] -> [0, ...$tail]\n"+
+		"}\n"+
+		"eval(@{ [1, 2, 3, 4] } ~ simplify)",
+	)
+
+	list := expectValue[*runtime.ListValue](t, result)
+	if len(list.Elements) != 3 {
+		t.Fatalf("element count = %d, want 3", len(list.Elements))
+	}
+
+	first := expectValue[*runtime.NumberValue](t, list.Elements[0])
+	second := expectValue[*runtime.NumberValue](t, list.Elements[1])
+	third := expectValue[*runtime.NumberValue](t, list.Elements[2])
+	if first.Value != 0 || second.Value != 2 || third.Value != 3 {
+		t.Fatalf("rest rewrite mismatch")
+	}
+}
+
 func TestEvaluateQuoteUnquoteRejectsNonCodeValues(t *testing.T) {
 	_, err := evalString(runtime.NewEnvironment(nil), "invalid_unquote.molt", ""+
 		"value = 1\n"+
@@ -1318,6 +1340,49 @@ func TestEvaluateQuoteValidationRejectsMalformedInterpolationBeforeExecution(t *
 				t.Fatalf("%s = %v, want %v", tc.bindingName, value.Value, tc.bindingValue)
 			}
 		})
+	}
+}
+
+func TestEvaluateQuoteInterpolationUsesGeneratedLexicalScope(t *testing.T) {
+	env := runtime.NewEnvironment(nil)
+	result := mustEval(t, env, "quote_hygiene.molt", ""+
+		"x = 2\n"+
+		"outer = 10\n"+
+		"fragment = @{ x + outer }\n"+
+		"maker = @{ fn(x) = ~(fragment) }\n"+
+		"f = eval(maker)\n"+
+		"f(5)",
+	)
+
+	number := expectValue[*runtime.NumberValue](t, result)
+	if number.Value != 15 {
+		t.Fatalf("result = %v, want 15", number.Value)
+	}
+
+	outerX := expectValue[*runtime.NumberValue](t, env.MustGet("x"))
+	if outerX.Value != 2 {
+		t.Fatalf("outer x = %v, want 2", outerX.Value)
+	}
+}
+
+func TestEvaluateMutationSubstitutionUsesGeneratedLexicalScope(t *testing.T) {
+	env := runtime.NewEnvironment(nil)
+	result := mustEval(t, env, "mutation_hygiene.molt", ""+
+		"x = 2\n"+
+		"outer = 10\n"+
+		"wrap = ~{ $body -> fn(x) = $body }\n"+
+		"f = eval(@{ x + outer } ~ wrap)\n"+
+		"f(7)",
+	)
+
+	number := expectValue[*runtime.NumberValue](t, result)
+	if number.Value != 17 {
+		t.Fatalf("result = %v, want 17", number.Value)
+	}
+
+	outerX := expectValue[*runtime.NumberValue](t, env.MustGet("x"))
+	if outerX.Value != 2 {
+		t.Fatalf("outer x = %v, want 2", outerX.Value)
 	}
 }
 
