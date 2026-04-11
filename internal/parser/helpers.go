@@ -30,7 +30,7 @@ func (p *Parser) parseCommaSeparatedExpressions(stop lexer.Kind, stopLabel strin
 		}
 
 		if p.check(stop) {
-			return nil, lexer.Token{}, p.errorAt(p.peek(), "expected expression after ','")
+			break // trailing comma allowed
 		}
 	}
 

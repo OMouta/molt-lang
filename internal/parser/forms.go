@@ -292,7 +292,7 @@ func (p *Parser) parseRecordLiteral(start lexer.Token) (ast.Expr, error) {
 		}
 
 		if p.check(lexer.RightBrace) {
-			return nil, p.errorAt(p.peek(), "expected record field after ','")
+			break // trailing comma allowed
 		}
 	}
 

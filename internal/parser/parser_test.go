@@ -648,7 +648,6 @@ func TestParseRejectsMalformedPrograms(t *testing.T) {
 		{name: "record missing field name", input: "record { 1: 2 }", message: "expected record field name"},
 		{name: "record missing colon", input: "record { answer 42 }", message: "expected ':' after record field name"},
 		{name: "record duplicate field", input: "record { answer: 1, answer: 2 }", message: `duplicate record field "answer"`},
-		{name: "record trailing comma", input: "record { answer: 1, }", message: "expected record field after ','"},
 		{name: "field access missing name", input: "value.", message: "expected field name after '.'"},
 		{name: "field access newline", input: "value.\nname", message: "expected field name after '.'"},
 		{name: "missing mutation arrow", input: "~{ x y }", message: "expected '->' in mutation rule"},
@@ -658,7 +657,6 @@ func TestParseRejectsMalformedPrograms(t *testing.T) {
 		{name: "missing mutation operand", input: "code ~\nnext", message: "expected mutation after '~'"},
 		{name: "unquote outside quote", input: "~(code)", message: "unquote is only valid inside quotes"},
 		{name: "splice outside quote", input: "~[code]", message: "splice is only valid inside quotes"},
-		{name: "trailing comma", input: "[1,]", message: "expected expression after ','"},
 	}
 
 	for _, tc := range tests {

@@ -27,7 +27,7 @@ jobs:
           TAG="nightly-$(date -u +%Y-%m-%d)"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-          LAST=$(git tag -l "nightly-*" | sort -r | head -1)
+          LAST=$(git tag -l "nightly-*" --sort=-creatordate | head -1)
           if [ -z "$LAST" ]; then
             echo "No previous nightly tag found — first run."
             echo "has_commits=true" >> "$GITHUB_OUTPUT"
@@ -49,6 +49,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # full history + tags for accurate release notes
 
       - uses: actions/setup-go@v5
         with:
@@ -70,14 +72,17 @@ jobs:
       - name: Collect recent commits for release notes
         id: notes
         run: |
-          LAST=$(git tag -l "nightly-*" | sort -r | head -1)
+          LAST=$(git tag -l "nightly-*" --sort=-creatordate | head -1)
           if [ -z "$LAST" ]; then
             RANGE="HEAD"
           else
             RANGE="$LAST..HEAD"
           fi
-          # Write commit list to a file (handles newlines safely)
-          git log $RANGE --oneline --no-decorate > notes.txt
+          {
+            echo "## Changes"
+            echo
+            git log "$RANGE" --no-decorate --date=short --pretty=format:'- %h %s (%an, %ad)'
+          } > notes.txt
 
       - name: Create pre-release
         uses: softprops/action-gh-release@v2
