@@ -90,6 +90,14 @@ func ind(depth int) string {
 	return strings.Repeat("  ", depth)
 }
 
+func indentLines(text string, depth int) string {
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		lines[i] = ind(depth) + line
+	}
+	return strings.Join(lines, "\n")
+}
+
 // formatExpr formats a single AST expression node. The returned string has no
 // leading indentation on its first line; the caller is responsible for that.
 // Continuation lines (after embedded newlines) carry the correct indentation
@@ -98,10 +106,12 @@ func formatExpr(node ast.Expr, depth int) string {
 	switch n := node.(type) {
 
 	// --- Literals ---
+	case *ast.CommentExpr:
+		return n.Text
 	case *ast.NumberLiteral:
 		return strconv.FormatFloat(n.Value, 'f', -1, 64)
 	case *ast.StringLiteral:
-		return strconv.Quote(n.Value)
+		return quoteString(n.Value)
 	case *ast.BooleanLiteral:
 		if n.Value {
 			return "true"
@@ -356,6 +366,24 @@ func formatBlock(exprs []ast.Expr, depth int) string {
 	return sb.String()
 }
 
+func formatExpandedBlock(exprs []ast.Expr, depth int) string {
+	if len(exprs) == 0 {
+		return "{}"
+	}
+
+	var sb strings.Builder
+	sb.WriteString("{\n")
+	for _, expr := range exprs {
+		formatted := formatExpr(expr, depth+1)
+		sb.WriteString(ind(depth + 1))
+		sb.WriteString(formatted)
+		sb.WriteByte('\n')
+	}
+	sb.WriteString(ind(depth))
+	sb.WriteByte('}')
+	return sb.String()
+}
+
 // formatBodyAsBlock wraps a non-block expression in "{ expr }" for use as a
 // while/for body. If the expression is already a BlockExpr, formats it
 // directly. This ensures while/for bodies are always braced canonically.
@@ -388,7 +416,16 @@ func formatNamedFunction(n *ast.NamedFunctionExpr, depth int) string {
 	if !hasNewline(body) && fits(inline, depth) {
 		return inline
 	}
-	return head + body
+
+	if block, ok := n.Body.(*ast.BlockExpr); ok {
+		return head + formatExpandedBlock(block.Expressions, depth)
+	}
+
+	if hasNewline(body) {
+		return head + body
+	}
+
+	return head + "\n" + ind(depth+1) + body
 }
 
 func formatFunctionLiteral(n *ast.FunctionLiteralExpr, depth int) string {
@@ -398,39 +435,163 @@ func formatFunctionLiteral(n *ast.FunctionLiteralExpr, depth int) string {
 	if !hasNewline(body) && fits(inline, depth) {
 		return inline
 	}
-	return head + body
+
+	if block, ok := n.Body.(*ast.BlockExpr); ok {
+		return head + formatExpandedBlock(block.Expressions, depth)
+	}
+
+	if hasNewline(body) {
+		return head + body
+	}
+
+	return head + "\n" + ind(depth+1) + body
 }
 
 func formatCall(n *ast.CallExpr, depth int) string {
 	callee := formatExpr(n.Callee, depth)
+	if len(n.Arguments) == 0 {
+		return callee + "()"
+	}
+
 	args := make([]string, len(n.Arguments))
 	for i, arg := range n.Arguments {
-		args[i] = formatExpr(arg, depth)
+		args[i] = formatExpr(arg, depth+1)
 	}
-	return callee + "(" + strings.Join(args, ", ") + ")"
+
+	inlineArgs := make([]string, len(n.Arguments))
+	for i, arg := range n.Arguments {
+		inlineArgs[i] = formatExpr(arg, depth)
+	}
+
+	inline := callee + "(" + strings.Join(inlineArgs, ", ") + ")"
+	if !hasNewline(callee) && !shouldExpandCall(n.Arguments, inlineArgs, inline, depth) {
+		return inline
+	}
+
+	var sb strings.Builder
+	sb.WriteString(callee)
+	sb.WriteString("(\n")
+	for _, arg := range args {
+		sb.WriteString(ind(depth + 1))
+		sb.WriteString(arg)
+		sb.WriteString(",\n")
+	}
+	sb.WriteString(ind(depth))
+	sb.WriteByte(')')
+	return sb.String()
+}
+
+func shouldExpandCall(args []ast.Expr, inlineArgs []string, inline string, depth int) bool {
+	if hasNewlineInAny(inlineArgs) || !fits(inline, depth) {
+		return true
+	}
+
+	if len(args) > 1 {
+		for _, arg := range args {
+			if !isSimpleInlineExpr(arg) {
+				return true
+			}
+		}
+	}
+
+	if len(args) == 1 && !isSimpleInlineExpr(args[0]) && len(inline) > 24 {
+		return true
+	}
+
+	return false
+}
+
+func isSimpleInlineExpr(expr ast.Expr) bool {
+	switch node := expr.(type) {
+	case *ast.CommentExpr,
+		*ast.NumberLiteral,
+		*ast.StringLiteral,
+		*ast.BooleanLiteral,
+		*ast.NilLiteral,
+		*ast.OperatorLiteral,
+		*ast.Identifier,
+		*ast.MutationCaptureExpr,
+		*ast.MutationWildcardExpr,
+		*ast.MutationRestCaptureExpr:
+		return true
+	case *ast.FieldAccessExpr:
+		return isSimpleInlineExpr(node.Target)
+	case *ast.IndexExpr:
+		return isSimpleInlineExpr(node.Target) && isSimpleInlineExpr(node.Index)
+	case *ast.GroupExpr:
+		return isSimpleInlineExpr(node.Inner)
+	case *ast.UnaryExpr:
+		return isSimpleInlineExpr(node.Operand)
+	default:
+		return false
+	}
 }
 
 // --- Control flow ---
 
 func formatConditional(n *ast.ConditionalExpr, depth int) string {
 	cond := formatExpr(n.Condition, depth)
-	then := formatExpr(n.ThenBranch, depth)
+	then := formatConditionalBranch(n.ThenBranch, depth)
 
 	if n.ElseBranch == nil {
-		return "if " + cond + " -> " + then
+		inlineThen := formatExpr(n.ThenBranch, depth)
+		inline := "if " + cond + " -> " + inlineThen
+		if !conditionalBranchForcesMultiline(n.ThenBranch) && !hasNewline(inlineThen) && fits(inline, depth) {
+			return inline
+		}
+
+		return formatArrowBranch("if "+cond+" ->", then, depth, n.ThenBranch)
 	}
 
-	else_ := formatExpr(n.ElseBranch, depth)
-	inline := "if " + cond + " -> " + then + " else -> " + else_
-	if !hasNewline(then) && !hasNewline(else_) && fits(inline, depth) {
+	else_ := formatConditionalBranch(n.ElseBranch, depth)
+	inlineThen := formatExpr(n.ThenBranch, depth)
+	inlineElse := formatExpr(n.ElseBranch, depth)
+	inline := "if " + cond + " -> " + inlineThen + " else -> " + inlineElse
+	if !conditionalBranchForcesMultiline(n.ThenBranch) &&
+		!conditionalBranchForcesMultiline(n.ElseBranch) &&
+		!hasNewline(inlineThen) &&
+		!hasNewline(inlineElse) &&
+		fits(inline, depth) {
 		return inline
 	}
-	// Attach "else ->" to the end of the then branch (after its closing "}" if
-	// it's a block, or on a new line if it's a plain expression).
-	if hasNewline(then) {
-		return "if " + cond + " -> " + then + " else -> " + else_
+
+	thenPart := formatArrowBranch("if "+cond+" ->", then, depth, n.ThenBranch)
+	elsePart := formatArrowBranch("else ->", else_, depth, n.ElseBranch)
+
+	if strings.HasPrefix(then, "{") || strings.HasPrefix(else_, "if ") || strings.HasPrefix(else_, "{") {
+		return thenPart + " " + elsePart
 	}
-	return "if " + cond + " -> " + then + "\n" + ind(depth) + "else -> " + else_
+
+	return thenPart + "\n" + ind(depth) + elsePart
+}
+
+func formatConditionalBranch(expr ast.Expr, depth int) string {
+	if block, ok := expr.(*ast.BlockExpr); ok {
+		return formatExpandedBlock(block.Expressions, depth)
+	}
+
+	return formatExpr(expr, depth)
+}
+
+func conditionalBranchForcesMultiline(expr ast.Expr) bool {
+	switch expr.(type) {
+	case *ast.BlockExpr, *ast.ConditionalExpr:
+		return true
+	default:
+		return false
+	}
+}
+
+func formatArrowBranch(prefix, branch string, depth int, raw ast.Expr) string {
+	if strings.HasPrefix(branch, "{") || strings.HasPrefix(branch, "if ") {
+		return prefix + " " + branch
+	}
+
+	if !hasNewline(branch) && !conditionalBranchForcesMultiline(raw) && fits(prefix+" "+branch, depth) {
+		return prefix + " " + branch
+	}
+
+	return prefix + "\n" + ind(depth+1) + formatExpr(raw, depth+1)
 }
 
 func formatWhile(n *ast.WhileExpr, depth int) string {
@@ -577,5 +738,32 @@ func formatMutation(rules []*ast.MutationRule, depth int) string {
 	}
 	sb.WriteString(ind(depth))
 	sb.WriteByte('}')
+	return sb.String()
+}
+
+func quoteString(value string) string {
+	var sb strings.Builder
+	sb.WriteByte('"')
+
+	for i := 0; i < len(value); i++ {
+		switch ch := value[i]; ch {
+		case '\\':
+			sb.WriteString(`\\`)
+		case '"':
+			sb.WriteString(`\"`)
+		case 0x1b:
+			sb.WriteString(`\e`)
+		case '\n':
+			sb.WriteString(`\n`)
+		case '\r':
+			sb.WriteString(`\r`)
+		case '\t':
+			sb.WriteString(`\t`)
+		default:
+			sb.WriteByte(ch)
+		}
+	}
+
+	sb.WriteByte('"')
 	return sb.String()
 }

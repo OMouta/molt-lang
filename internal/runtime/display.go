@@ -287,6 +287,8 @@ func formatQuotedBody(expr ast.Expr, indent int) string {
 
 func formatExpr(expr ast.Expr, indent int) string {
 	switch node := expr.(type) {
+	case *ast.CommentExpr:
+		return node.Text
 	case *ast.OperatorLiteral:
 		return node.Symbol
 	case *ast.NumberLiteral:

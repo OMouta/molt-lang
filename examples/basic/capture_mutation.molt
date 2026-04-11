@@ -2,10 +2,12 @@ import "std:io"
 import "std:meta"
 
 value = 7
-
 simplify = ~{
   ($x + 0) -> $x
   (0 + $x) -> $x
 }
-
-io.print(meta.eval(@{ 0 + (value + 0) } ~ simplify))
+io.print(
+  meta.eval(
+    @{ 0 + (value + 0) } ~ simplify,
+  ),
+)

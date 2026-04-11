@@ -1,7 +1,12 @@
 import "std:errors"
 
 fn load_config(path) = {
-  errors.throw(errors.error("config file not found", record { path: path }))
+  errors.throw(
+    errors.error(
+      "config file not found",
+      record { path: path },
+    ),
+  )
 }
 
 load_config("settings.json")

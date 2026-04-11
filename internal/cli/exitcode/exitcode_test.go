@@ -9,6 +9,7 @@ func TestValuesRemainStable(t *testing.T) {
 		"SourceIO":    2,
 		"Diagnostics": 3,
 		"Runtime":     4,
+		"NeedsFormat": 5,
 		"Internal":    10,
 	}
 
@@ -18,6 +19,7 @@ func TestValuesRemainStable(t *testing.T) {
 		"SourceIO":    SourceIO,
 		"Diagnostics": Diagnostics,
 		"Runtime":     Runtime,
+		"NeedsFormat": NeedsFormat,
 		"Internal":    Internal,
 	}
 

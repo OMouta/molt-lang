@@ -8,6 +8,9 @@ func EqualExpr(left, right ast.Expr) bool {
 	}
 
 	switch l := left.(type) {
+	case *ast.CommentExpr:
+		r, ok := right.(*ast.CommentExpr)
+		return ok && l.Text == r.Text
 	case *ast.OperatorLiteral:
 		r, ok := right.(*ast.OperatorLiteral)
 		return ok && l.Symbol == r.Symbol

@@ -7,5 +7,4 @@ for item in [1, 2, 3, 4] -> {
   if item == 4 -> break
   c.push(xs, item)
 }
-
 io.print(xs)

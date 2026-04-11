@@ -9,6 +9,8 @@ go test ./...
 go vet ./...
 go build ./...
 gofmt -w .
+go run ./cmd/molt fmt .
+go run ./cmd/molt fmt --check .
 ```
 
 ## Working Style
@@ -16,7 +18,7 @@ gofmt -w .
 - Keep behavior production-complete. Avoid placeholders and speculative shortcuts.
 - Add tests with each semantic change.
 - Prefer extending existing integration coverage when adding language features.
-- Use `gofmt` before final verification.
+- Run both `gofmt` and `molt fmt` before final verification.
 
 ## Testing Expectations
 

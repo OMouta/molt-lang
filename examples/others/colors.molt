@@ -3,20 +3,24 @@ import "std:io"
 import "std:strings"
 
 colors = record {
-    reset: "\e[0m",
-    red: "\e[31m",
-    green: "\e[32m",
-    yellow: "\e[33m",
-    blue: "\e[34m",
-    magenta: "\e[35m",
-    cyan: "\e[36m"
+  reset: "\e[0m",
+  red: "\e[31m",
+  green: "\e[32m",
+  yellow: "\e[33m",
+  blue: "\e[34m",
+  magenta: "\e[35m",
+  cyan: "\e[36m",
 }
 
 fn pretty_print(text, color) = {
-    if c.contains(colors, color) ->
-        io.print(strings.join([colors[color], text, colors.reset], ""))
-    else ->
-        io.print(text)
+  if c.contains(colors, color) ->
+    io.print(
+      strings.join(
+        [colors[color], text, colors.reset],
+        "",
+      ),
+    )
+  else -> io.print(text)
 }
 
 pretty_print("hi in red", "red")

@@ -15,6 +15,15 @@ case "$task" in
     ;;
   format)
     gofmt -w .
+    go run ./cmd/molt fmt .
+    ;;
+  format:check)
+    unformatted_go="$(gofmt -l .)"
+    if [ -n "$unformatted_go" ]; then
+      printf '%s\n' "$unformatted_go"
+      exit 1
+    fi
+    go run ./cmd/molt fmt --check .
     ;;
   docs)
     go run ./cmd/docgen
@@ -28,7 +37,7 @@ case "$task" in
     go run ./cmd/docgen
     ;;
   *)
-    echo "usage: ./dev.sh {build|test|lint|format|docs|docs:build|docs:gen}" >&2
+    echo "usage: ./dev.sh {build|test|lint|format|format:check|docs|docs:build|docs:gen}" >&2
     exit 1
     ;;
 esac

@@ -64,6 +64,27 @@ func (p *Parser) parseExpressionSequence(stop lexer.Kind, stopLabel string) ([]a
 	expressions := make([]ast.Expr, 0, 4)
 
 	for !p.check(stop) && !p.isAtEnd() {
+		if p.check(lexer.Comment) {
+			token := p.advance()
+			expressions = append(expressions, &ast.CommentExpr{
+				SourceSpan: token.Span,
+				Text:       token.Value,
+			})
+
+			if p.check(stop) {
+				break
+			}
+
+			if !p.startsOnLaterLine(token.Span, p.peek()) {
+				return nil, p.errorAt(
+					p.peek(),
+					fmt.Sprintf("expected line break or %s after expression", stopLabel),
+				)
+			}
+
+			continue
+		}
+
 		expr, err := p.parseExpression()
 		if err != nil {
 			return nil, err

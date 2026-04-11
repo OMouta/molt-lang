@@ -1,9 +1,5 @@
 import "std:io"
 
 x = 0
-
-while x < 3 -> {
-  x = x + 1
-}
-
+while x < 3 -> { x = x + 1 }
 io.print(x)

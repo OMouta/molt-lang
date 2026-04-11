@@ -1,7 +1,7 @@
 import "std:io"
 
 fn add(a, b) = a + b
-fn mul = add ~{ + -> * }
 
+mul = add ~{ + -> * }
 io.print(add(2, 3))
 io.print(mul(2, 3))

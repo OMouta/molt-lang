@@ -23,8 +23,12 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return runREPL(stdin, stdout, stderr, nil)
 	}
 
+	if args[0] == "fmt" {
+		return runFmt(args[1:], stdin, stdout, stderr)
+	}
+
 	if isUnsupportedOption(args[0]) {
-		fmt.Fprintln(stderr, "usage: molt [file|-] [args...]")
+		printMainUsage(stderr)
 		return exitcode.Usage
 	}
 
@@ -73,6 +77,11 @@ func reportError(err error, stderr io.Writer) int {
 
 func isUnsupportedOption(arg string) bool {
 	return strings.HasPrefix(arg, "-") && arg != "-"
+}
+
+func printMainUsage(stderr io.Writer) {
+	fmt.Fprintln(stderr, "usage: molt [file|-] [args...]")
+	fmt.Fprintln(stderr, "       molt fmt [--check] [path ...]")
 }
 
 func readProgramSource(path string, stdin io.Reader) (string, error) {

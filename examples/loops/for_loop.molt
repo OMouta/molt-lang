@@ -2,15 +2,8 @@ import "std:collections" as c
 import "std:io"
 
 total = 0
-for item in [1, 2, 3] -> {
-  total = total + item
-}
-
+for item in [1, 2, 3] -> { total = total + item }
 io.print(total)
-
 chars = []
-for ch in "ok" -> {
-  c.push(chars, ch)
-}
-
+for ch in "ok" -> { c.push(chars, ch) }
 io.print(chars)

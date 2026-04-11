@@ -90,6 +90,16 @@ func TestEvaluateBlocksAndAssignmentSemantics(t *testing.T) {
 	}
 }
 
+func TestEvaluateIgnoresStandaloneComments(t *testing.T) {
+	env := runtime.NewEnvironment(nil)
+	result := mustEval(t, env, "comments.molt", "x = 1\n# keep this note\nx + 1")
+
+	number := expectValue[*runtime.NumberValue](t, result)
+	if number.Value != 2 {
+		t.Fatalf("result = %v, want 2", number.Value)
+	}
+}
+
 func TestEvaluateDestructuringAssignmentsSupportListsRecordsAndNestedPatterns(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
 	result := mustEval(t, env, "destructuring_assignment.molt", ""+

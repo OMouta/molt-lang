@@ -5,12 +5,12 @@ describe = fn(value) = match value {
   2 -> "two"
   name -> name
 }
-
 fallback = match false {
   true -> "yes"
   _ -> "no"
 }
-
 io.print(describe(2))
-io.print(describe("molt"))
+io.print(
+  describe("molt"),
+)
 io.print(fallback)

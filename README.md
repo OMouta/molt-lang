@@ -25,16 +25,22 @@ go test ./...
 go vet ./...
 ```
 
+Format Molt and Go sources:
+
+```powershell
+go run ./cmd/molt fmt .
+```
+
+Check formatting without rewriting files:
+
+```powershell
+go run ./cmd/molt fmt --check .
+```
+
 Run a program:
 
 ```powershell
 go run ./cmd/molt ./examples/basic/basic_mutation.molt
-```
-
-Format the codebase:
-
-```powershell
-gofmt -w .
 ```
 
 Convenience wrappers are also available:
@@ -44,6 +50,7 @@ Convenience wrappers are also available:
 ./dev.ps1 test
 ./dev.ps1 lint
 ./dev.ps1 format
+./dev.ps1 format:check
 ```
 
 ## Example

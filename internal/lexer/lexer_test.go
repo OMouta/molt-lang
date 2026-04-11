@@ -31,6 +31,7 @@ warp @{ 1 + 2 } ~ other != stuff <= more >= less < x > y
 	}
 
 	wantKinds := []Kind{
+		Comment,
 		Import, String,
 		Fn, Identifier, LeftParen, Identifier, RightParen, Assign, LeftBrace,
 		Identifier, Assign, LeftBracket, Number, Comma, Number, Comma, String, RightBracket,
@@ -52,19 +53,20 @@ warp @{ 1 + 2 } ~ other != stuff <= more >= less < x > y
 		}
 	}
 
-	checkTokenValue(t, tokens[1], "./lib.molt")
-	checkTokenValue(t, tokens[3], "warp")
-	checkTokenValue(t, tokens[5], "code")
-	checkTokenValue(t, tokens[12], "1")
-	checkTokenValue(t, tokens[14], "2.5")
-	checkTokenValue(t, tokens[16], "hi\n\"there\"")
-	checkTokenValue(t, tokens[28], "eval")
-	checkTokenValue(t, tokens[41], "xs")
-	checkTokenValue(t, tokens[43], "3")
-	checkTokenValue(t, tokens[46], "warp")
-	checkTokenValue(t, tokens[48], "1")
-	checkTokenValue(t, tokens[50], "2")
-	checkTokenValue(t, tokens[53], "other")
+	checkTokenValue(t, tokens[0], "# file header")
+	checkTokenValue(t, tokens[2], "./lib.molt")
+	checkTokenValue(t, tokens[4], "warp")
+	checkTokenValue(t, tokens[6], "code")
+	checkTokenValue(t, tokens[13], "1")
+	checkTokenValue(t, tokens[15], "2.5")
+	checkTokenValue(t, tokens[17], "hi\n\"there\"")
+	checkTokenValue(t, tokens[29], "eval")
+	checkTokenValue(t, tokens[42], "xs")
+	checkTokenValue(t, tokens[44], "3")
+	checkTokenValue(t, tokens[47], "warp")
+	checkTokenValue(t, tokens[49], "1")
+	checkTokenValue(t, tokens[51], "2")
+	checkTokenValue(t, tokens[54], "other")
 
 	eof := tokens[len(tokens)-1]
 	if eof.Span.Start.Offset != eof.Span.End.Offset {

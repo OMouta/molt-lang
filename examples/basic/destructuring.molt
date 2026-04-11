@@ -2,8 +2,9 @@ import "std:io"
 
 pair = [1, [2, 3]]
 [left, [middle, right]] = pair
-io.print([left, middle, right])
-
+io.print(
+  [left, middle, right],
+)
 profile = record { name: "molt", stats: record { runs: 4 } }
 record { name: who, stats: record { runs: count } } = profile
 io.print([who, count])

@@ -48,6 +48,11 @@ func TestFormatterLiterals(t *testing.T) {
 	assertFormat(t, "nil", "nil\n")
 }
 
+func TestFormatterStringEscapesStayParserCompatible(t *testing.T) {
+	assertFormat(t, `"a\eb\n\t\\\"c"`, `"a\eb\n\t\\\"c"`+"\n")
+	assertIdempotent(t, `"a\eb\n\t\\\"c"`)
+}
+
 // TestFormatterBinding covers variable assignments.
 func TestFormatterBinding(t *testing.T) {
 	assertFormat(t, "x = 42", "x = 42\n")
@@ -174,6 +179,28 @@ func TestFormatterFunctions(t *testing.T) {
 	// Function call
 	assertFormat(t, "add(1, 2)", "add(1, 2)\n")
 	assertFormat(t, `io.print("hi")`, `io.print("hi")`+"\n")
+
+	longCall := `errors.throw(errors.error("config file not found", record { path: path }))`
+	wantLongCall := `errors.throw(
+  errors.error(
+    "config file not found",
+    record { path: path },
+  ),
+)
+`
+	assertFormat(t, longCall, wantLongCall)
+
+	longFn := `fn load_config(path) = { errors.throw(errors.error("config file not found", record { path: path })) }`
+	wantLongFn := `fn load_config(path) = {
+  errors.throw(
+    errors.error(
+      "config file not found",
+      record { path: path },
+    ),
+  )
+}
+`
+	assertFormat(t, longFn, wantLongFn)
 }
 
 // TestFormatterTopLevelGrouping covers blank-line insertion around named functions.
@@ -204,6 +231,13 @@ func TestFormatterImportGrouping(t *testing.T) {
 
 	// Imports-only file: no trailing blank line
 	assertFormat(t, `import "std:io"`, `import "std:io"`+"\n")
+}
+
+func TestFormatterPreservesStandaloneComments(t *testing.T) {
+	src := "import \"std:io\"\n# say hi\nio.print(\"hi\")"
+	want := "import \"std:io\"\n\n# say hi\nio.print(\"hi\")\n"
+	assertFormat(t, src, want)
+	assertIdempotent(t, src)
 }
 
 // TestFormatterImportForms covers all import syntaxes.
@@ -243,6 +277,15 @@ func TestFormatterConditional(t *testing.T) {
 	want := "if x -> {\n  a = 1\n  b = 2\n  a\n} else -> {\n  c = 3\n  c\n}\n"
 	assertFormat(t, src, want)
 	assertIdempotent(t, src)
+
+	nested := "if guess == secret -> {\nio.print(\"you got it!\")\nwon = true\n} else -> if guess < secret -> {\nio.print(\"too low\")\n} else -> {\nio.print(\"too high\")\n}"
+	wantNested := "if guess == secret -> {\n  io.print(\"you got it!\")\n  won = true\n} else -> if guess < secret -> {\n  io.print(\"too low\")\n} else -> {\n  io.print(\"too high\")\n}\n"
+	assertFormat(t, nested, wantNested)
+	assertIdempotent(t, nested)
+
+	longBranches := "if c.contains(colors, color) -> io.print(strings.join([colors[color], text, colors.reset], \"\")) else -> io.print(text)"
+	wantLongBranches := "if c.contains(colors, color) ->\n  io.print(\n    strings.join(\n      [colors[color], text, colors.reset],\n      \"\",\n    ),\n  )\nelse -> io.print(text)\n"
+	assertFormat(t, longBranches, wantLongBranches)
 }
 
 // TestFormatterWhile covers while loops.

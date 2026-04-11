@@ -1,8 +1,9 @@
 import "std:io"
 import "std:meta"
 
-simplify = ~{
-  [1, ...$tail, 4] -> [0, ...$tail]
-}
-
-io.print(meta.eval(@{ [1, 2, 3, 4] } ~ simplify))
+simplify = ~{ [1, ...$tail, 4] -> [0, ...$tail] }
+io.print(
+  meta.eval(
+    @{ [1, 2, 3, 4] } ~ simplify,
+  ),
+)

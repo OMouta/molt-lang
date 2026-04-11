@@ -53,6 +53,8 @@ func (l *Lexer) nextToken() (Token, error) {
 	ch := l.cursor.advance()
 
 	switch ch {
+	case '#':
+		return l.lexComment(start), nil
 	case '(':
 		return l.token(LeftParen, start, ""), nil
 	case ')':
@@ -231,6 +233,20 @@ func (l *Lexer) lexString(start int) (Token, error) {
 	return Token{}, l.errorSpan("unterminated string literal", start, l.cursor.offset)
 }
 
+func (l *Lexer) lexComment(start int) Token {
+	for !l.cursor.isAtEnd() {
+		if l.cursor.peek() == '\n' {
+			break
+		}
+
+		l.cursor.advance()
+	}
+
+	text := l.file.Text()[start:l.cursor.offset]
+	text = strings.TrimSuffix(text, "\r")
+	return l.token(Comment, start, text)
+}
+
 func (l *Lexer) readEscape() (byte, error) {
 	if l.cursor.isAtEnd() {
 		return 0, fmt.Errorf("unterminated string literal")
@@ -259,24 +275,12 @@ func (l *Lexer) skipTrivia() error {
 		switch l.cursor.peek() {
 		case ' ', '\t', '\n', '\r':
 			l.cursor.advance()
-		case '#':
-			l.skipComment()
 		default:
 			return nil
 		}
 	}
 
 	return nil
-}
-
-func (l *Lexer) skipComment() {
-	for !l.cursor.isAtEnd() {
-		if l.cursor.peek() == '\n' {
-			return
-		}
-
-		l.cursor.advance()
-	}
 }
 
 func (l *Lexer) token(kind Kind, start int, value string) Token {

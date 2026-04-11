@@ -14,6 +14,7 @@ const (
 	Identifier Kind = "identifier"
 	Number     Kind = "number"
 	String     Kind = "string"
+	Comment    Kind = "comment"
 
 	Fn       Kind = "fn"
 	If       Kind = "if"

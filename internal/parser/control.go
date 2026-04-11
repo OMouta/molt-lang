@@ -47,8 +47,8 @@ func (p *Parser) parseConditional() (ast.Expr, error) {
 		return &ast.ForInExpr{
 			SourceSpan: p.mergeSpans(start.Span, body.Span()),
 			Binding:    binding,
-			Iterable: iterable,
-			Body:     body,
+			Iterable:   iterable,
+			Body:       body,
 		}, nil
 	}
 

@@ -2,14 +2,13 @@ import "std:io"
 import "std:meta"
 
 # Guess the fixed secret number. Keep entering guesses until you win.
-
 secret = 7
 won = false
-
 while not won -> {
   io.print("guess a number between 1 and 10")
-  guess = meta.to_number(io.input())
-
+  guess = meta.to_number(
+    io.input(),
+  )
   if guess == secret -> {
     io.print("you got it!")
     won = true

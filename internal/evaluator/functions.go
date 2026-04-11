@@ -220,7 +220,8 @@ func (e *Evaluator) validateQuoteExpr(expr ast.Expr, context quoteValidationCont
 		default:
 			return e.runtimeError(node, "splice is only allowed in list, call, or block positions inside quotes")
 		}
-	case *ast.OperatorLiteral,
+	case *ast.CommentExpr,
+		*ast.OperatorLiteral,
 		*ast.NumberLiteral,
 		*ast.StringLiteral,
 		*ast.BooleanLiteral,
@@ -402,7 +403,8 @@ func (e *Evaluator) interpolateQuoteExpr(env *runtime.Environment, expr ast.Expr
 	}
 
 	switch node := expr.(type) {
-	case *ast.OperatorLiteral,
+	case *ast.CommentExpr,
+		*ast.OperatorLiteral,
 		*ast.NumberLiteral,
 		*ast.StringLiteral,
 		*ast.BooleanLiteral,

@@ -1,6 +1,6 @@
 param(
   [Parameter(Mandatory = $true)]
-  [ValidateSet("build", "test", "lint", "format", "docs", "docs:build", "docs:gen")]
+  [ValidateSet("build", "test", "lint", "format", "format:check", "docs", "docs:build", "docs:gen")]
   [string]$Task
 )
 
@@ -12,7 +12,27 @@ try {
     "build"      { go build ./... }
     "test"       { go test ./... }
     "lint"       { go vet ./... }
-    "format"     { gofmt -w . }
+    "format"     {
+      gofmt -w .
+      if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+      }
+
+      go run ./cmd/molt fmt .
+    }
+    "format:check" {
+      $unformattedGo = gofmt -l .
+      if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+      }
+
+      if ($unformattedGo) {
+        $unformattedGo | Write-Output
+        exit 1
+      }
+
+      go run ./cmd/molt fmt --check .
+    }
     "docs:gen"   { go run ./cmd/docgen }
     "docs"       {
       go run ./cmd/docgen

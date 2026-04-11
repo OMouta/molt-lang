@@ -125,6 +125,8 @@ func (e *Evaluator) EvalExpr(expr ast.Expr, env *runtime.Environment) (runtime.V
 
 func (e *Evaluator) evalExpr(env *runtime.Environment, expr ast.Expr) (runtime.Value, error) {
 	switch node := expr.(type) {
+	case *ast.CommentExpr:
+		return runtime.Nil, nil
 	case *ast.NumberLiteral:
 		return &runtime.NumberValue{Value: node.Value}, nil
 	case *ast.StringLiteral:

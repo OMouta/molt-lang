@@ -13,6 +13,8 @@ func rewriteWithRule(expr ast.Expr, rule *ast.MutationRule) (ast.Expr, bool) {
 	}
 
 	switch node := expr.(type) {
+	case *ast.CommentExpr:
+		return expr, false
 	case *ast.ExportExpr:
 		name, changed := rewriteIdentifier(node.Name, rule)
 		if !changed {
@@ -296,7 +298,8 @@ func validateMutationExpr(expr ast.Expr) error {
 	}
 
 	switch node := expr.(type) {
-	case *ast.OperatorLiteral,
+	case *ast.CommentExpr,
+		*ast.OperatorLiteral,
 		*ast.NumberLiteral,
 		*ast.StringLiteral,
 		*ast.BooleanLiteral,

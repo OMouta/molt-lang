@@ -140,8 +140,9 @@ func TestRunRejectsInvalidUsageAndMissingFiles(t *testing.T) {
 		t.Fatalf("usage exit code = %d, want 1", exit)
 	}
 
-	if stderr.String() != "usage: molt [file|-] [args...]\n" {
-		t.Fatalf("usage stderr = %q, want %q", stderr.String(), "usage: molt [file|-] [args...]\n")
+	wantUsage := "usage: molt [file|-] [args...]\n       molt fmt [--check] [path ...]\n"
+	if stderr.String() != wantUsage {
+		t.Fatalf("usage stderr = %q, want %q", stderr.String(), wantUsage)
 	}
 
 	stdout.Reset()
@@ -153,6 +154,171 @@ func TestRunRejectsInvalidUsageAndMissingFiles(t *testing.T) {
 
 	if !strings.Contains(stderr.String(), `failed to read source file "missing-file.molt"`) {
 		t.Fatalf("stderr = %q, want read failure", stderr.String())
+	}
+}
+
+func TestRunFmtFormatsFileInPlace(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "needs_format.molt")
+	writeTestFile(t, path, "x=1\nfn add(a,b)=a+b")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	exit := run([]string{"fmt", path}, strings.NewReader(""), &stdout, &stderr)
+
+	if exit != 0 {
+		t.Fatalf("exit code = %d, want 0", exit)
+	}
+
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile failed: %v", err)
+	}
+
+	want := "x = 1\n\nfn add(a, b) = a + b\n"
+	if string(data) != want {
+		t.Fatalf("formatted file = %q, want %q", string(data), want)
+	}
+}
+
+func TestRunFmtCheckReportsUnformattedFilesRecursively(t *testing.T) {
+	dir := t.TempDir()
+	nested := filepath.Join(dir, "nested")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+
+	formattedPath := filepath.Join(dir, "ok.molt")
+	unformattedPath := filepath.Join(nested, "needs_format.molt")
+	writeTestFile(t, formattedPath, "x = 1\n")
+	writeTestFile(t, unformattedPath, "fn add(a,b)=a+b")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	exit := run([]string{"fmt", "--check", dir}, strings.NewReader(""), &stdout, &stderr)
+
+	if exit != 5 {
+		t.Fatalf("exit code = %d, want 5", exit)
+	}
+
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+
+	data, err := os.ReadFile(unformattedPath)
+	if err != nil {
+		t.Fatalf("ReadFile failed: %v", err)
+	}
+
+	if string(data) != "fn add(a,b)=a+b" {
+		t.Fatalf("check mode rewrote file: %q", string(data))
+	}
+}
+
+func TestRunFmtPreservesStandaloneComments(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "commented.molt")
+	original := "import \"std:io\"\n# keep this comment\nio.print(\"hi\")\n"
+	writeTestFile(t, path, original)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	exit := run([]string{"fmt", path}, strings.NewReader(""), &stdout, &stderr)
+
+	if exit != 0 {
+		t.Fatalf("exit code = %d, want 0", exit)
+	}
+
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile failed: %v", err)
+	}
+
+	want := "import \"std:io\"\n\n# keep this comment\nio.print(\"hi\")\n"
+	if string(data) != want {
+		t.Fatalf("commented file = %q, want %q", string(data), want)
+	}
+}
+
+func TestRunFmtLeavesBrokenFilesUntouchedWhileFormattingValidOnes(t *testing.T) {
+	dir := t.TempDir()
+	goodPath := filepath.Join(dir, "good.molt")
+	badPath := filepath.Join(dir, "bad.molt")
+	writeTestFile(t, goodPath, "fn add(a,b)=a+b")
+	writeTestFile(t, badPath, "f(1, 2")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	exit := run([]string{"fmt", dir}, strings.NewReader(""), &stdout, &stderr)
+
+	if exit != 3 {
+		t.Fatalf("exit code = %d, want 3", exit)
+	}
+
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+
+	output := stderr.String()
+	if !strings.Contains(output, badPath+":1:7: parse error: expected ')' after list") {
+		t.Fatalf("stderr = %q, want parse diagnostic for broken file", output)
+	}
+
+	goodData, err := os.ReadFile(goodPath)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) failed: %v", goodPath, err)
+	}
+
+	if string(goodData) != "fn add(a, b) = a + b\n" {
+		t.Fatalf("formatted good file = %q, want %q", string(goodData), "fn add(a, b) = a + b\n")
+	}
+
+	badData, err := os.ReadFile(badPath)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) failed: %v", badPath, err)
+	}
+
+	if string(badData) != "f(1, 2" {
+		t.Fatalf("broken file was rewritten: %q", string(badData))
+	}
+}
+
+func TestRunFmtFormatsStdinToStdout(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	exit := run([]string{"fmt", "-"}, strings.NewReader("fn add(a,b)=a+b"), &stdout, &stderr)
+
+	if exit != 0 {
+		t.Fatalf("exit code = %d, want 0", exit)
+	}
+
+	if stdout.String() != "fn add(a, b) = a + b\n" {
+		t.Fatalf("stdout = %q, want %q", stdout.String(), "fn add(a, b) = a + b\n")
+	}
+
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
 	}
 }
 

@@ -6,5 +6,6 @@ const (
 	SourceIO    = 2
 	Diagnostics = 3
 	Runtime     = 4
+	NeedsFormat = 5
 	Internal    = 10
 )

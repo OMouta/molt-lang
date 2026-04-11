@@ -5,13 +5,20 @@ import "std:meta"
 profile = record { name: "molt", stats: record { runs: 3 } }
 profile.stats.runs = profile.stats.runs + 1
 profile.age = 2
-
 io.print(profile)
 io.print(profile.name)
 io.print(profile.stats.runs)
 io.print(profile.age)
-io.print(c.keys(profile))
-io.print(c.values(profile))
-io.print(c.contains(profile, "age"))
+io.print(
+  c.keys(profile),
+)
+io.print(
+  c.values(profile),
+)
+io.print(
+  c.contains(profile, "age"),
+)
 io.print(c.len(profile))
-io.print(meta.type(profile))
+io.print(
+  meta.type(profile),
+)

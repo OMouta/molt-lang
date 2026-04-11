@@ -113,6 +113,27 @@ func TestParseFunctionSyntax(t *testing.T) {
 	}
 }
 
+func TestParseStandaloneCommentsInSequences(t *testing.T) {
+	program := mustParse(t, "comments.molt", "import \"std:io\"\n# say hi\nio.print(\"hi\")")
+
+	if len(program.Expressions) != 3 {
+		t.Fatalf("program expression count = %d, want 3", len(program.Expressions))
+	}
+
+	if _, ok := program.Expressions[0].(*ast.ImportExpr); !ok {
+		t.Fatalf("expected import expression, got %T", program.Expressions[0])
+	}
+
+	comment := expectExpr[*ast.CommentExpr](t, program.Expressions[1])
+	if comment.Text != "# say hi" {
+		t.Fatalf("comment text = %q, want %q", comment.Text, "# say hi")
+	}
+
+	if _, ok := program.Expressions[2].(*ast.CallExpr); !ok {
+		t.Fatalf("expected call expression, got %T", program.Expressions[2])
+	}
+}
+
 func TestParseQuoteMutationAndPostfixForms(t *testing.T) {
 	program := mustParse(t, "postfix.molt", "warp @{ 1 + 2 }\ncode ~{ ($x + 0) -> $x }\nm1 ~ m2\nxs[0]\nuser.name\nusers[0].profile.name\nf(1, 2, 3)")
 

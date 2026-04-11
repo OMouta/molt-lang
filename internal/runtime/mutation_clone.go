@@ -12,6 +12,8 @@ func CloneExpr(expr ast.Expr) ast.Expr {
 	}
 
 	switch node := expr.(type) {
+	case *ast.CommentExpr:
+		return &ast.CommentExpr{SourceSpan: node.SourceSpan, Text: node.Text}
 	case *ast.OperatorLiteral:
 		return &ast.OperatorLiteral{SourceSpan: node.SourceSpan, Symbol: node.Symbol}
 	case *ast.NumberLiteral:

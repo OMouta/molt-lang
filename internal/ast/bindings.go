@@ -20,9 +20,9 @@ type ListBindingPattern struct {
 	Elements   []BindingPattern
 }
 
-func (n *ListBindingPattern) Span() source.Span { return n.SourceSpan }
-func (*ListBindingPattern) exprNode()           {}
-func (*ListBindingPattern) bindingPatternNode() {}
+func (n *ListBindingPattern) Span() source.Span   { return n.SourceSpan }
+func (*ListBindingPattern) exprNode()             {}
+func (*ListBindingPattern) bindingPatternNode()   {}
 func (*ListBindingPattern) assignmentTargetNode() {}
 
 type RecordBindingField struct {
@@ -38,9 +38,9 @@ type RecordBindingPattern struct {
 	Fields     []*RecordBindingField
 }
 
-func (n *RecordBindingPattern) Span() source.Span { return n.SourceSpan }
-func (*RecordBindingPattern) exprNode()           {}
-func (*RecordBindingPattern) bindingPatternNode() {}
+func (n *RecordBindingPattern) Span() source.Span   { return n.SourceSpan }
+func (*RecordBindingPattern) exprNode()             {}
+func (*RecordBindingPattern) bindingPatternNode()   {}
 func (*RecordBindingPattern) assignmentTargetNode() {}
 
 func (*FieldAccessExpr) assignmentTargetNode() {}

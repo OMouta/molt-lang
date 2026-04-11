@@ -33,6 +33,8 @@ func collectMutationCaptures(expr ast.Expr, captures mutationCaptureSet) error {
 	}
 
 	switch node := expr.(type) {
+	case *ast.CommentExpr:
+		return nil
 	case *ast.MutationCaptureExpr:
 		return recordMutationCapture(captures, mutationCaptureSingle, node.Name, "capture")
 	case *ast.MutationWildcardExpr:
@@ -208,6 +210,9 @@ func matchMutationExpr(pattern, target ast.Expr, captures mutationCaptures) bool
 	}
 
 	switch p := pattern.(type) {
+	case *ast.CommentExpr:
+		t, ok := target.(*ast.CommentExpr)
+		return ok && p.Text == t.Text
 	case *ast.MutationCaptureExpr:
 		if p.Name == nil {
 			return false
@@ -388,7 +393,8 @@ func instantiateMutationExpr(expr ast.Expr, captures mutationCaptures) ast.Expr 
 		panic("mutation wildcard is not valid in replacement expressions")
 	case *ast.MutationRestCaptureExpr:
 		panic("mutation rest capture must be instantiated in a sequence position")
-	case *ast.OperatorLiteral,
+	case *ast.CommentExpr,
+		*ast.OperatorLiteral,
 		*ast.NumberLiteral,
 		*ast.StringLiteral,
 		*ast.BooleanLiteral,
