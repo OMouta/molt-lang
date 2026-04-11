@@ -1,7 +1,9 @@
+import io from "std:io"
+
 pair = [1, [2, 3]]
 [left, [middle, right]] = pair
-print([left, middle, right])
+io.print([left, middle, right])
 
 profile = record { name: "molt", stats: record { runs: 4 } }
 record { name: who, stats: record { runs: count } } = profile
-print([who, count])
+io.print([who, count])

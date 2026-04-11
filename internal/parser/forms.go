@@ -103,7 +103,21 @@ func (p *Parser) parseExport(start lexer.Token) (ast.Expr, error) {
 }
 
 func (p *Parser) parseImport(start lexer.Token) (ast.Expr, error) {
-	pathToken, err := p.consume(lexer.String, "expected string literal after 'import'")
+	nameToken, err := p.consume(lexer.Identifier, "expected identifier after 'import'")
+	if err != nil {
+		return nil, err
+	}
+
+	name := &ast.Identifier{
+		SourceSpan: nameToken.Span,
+		Name:       nameToken.Value,
+	}
+
+	if _, err := p.consume(lexer.From, "expected 'from' after import name"); err != nil {
+		return nil, err
+	}
+
+	pathToken, err := p.consume(lexer.String, "expected string literal after 'from'")
 	if err != nil {
 		return nil, err
 	}
@@ -115,6 +129,7 @@ func (p *Parser) parseImport(start lexer.Token) (ast.Expr, error) {
 
 	return &ast.ImportExpr{
 		SourceSpan: p.mergeSpans(start.Span, pathToken.Span),
+		Name:       name,
 		Path:       path,
 	}, nil
 }

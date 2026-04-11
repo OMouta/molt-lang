@@ -13,8 +13,6 @@ The most important forms are:
 ```txt
 @{ ... }
 ~{ pattern -> replacement }
-eval(code)
-import "./module.molt"
 ```
 
 ## Values
@@ -33,7 +31,7 @@ The current runtime includes:
 - `code`
 - `mutation`
 
-The builtin `type(x)` returns those exact strings.
+After `import "std:meta"`, `type(x)` returns those exact strings.
 
 ## Syntax Overview
 
@@ -57,6 +55,7 @@ Imports:
 
 ```txt
 import "./math.molt"
+import "std:io"
 export add
 ```
 
@@ -166,7 +165,7 @@ List destructuring binds by exact shape: the value must be a list with the same 
 
 `try ... catch ...` is also an expression. If the `try` body finishes normally, the whole expression returns that value and the `catch` branch is skipped. If the `try` body raises a failure, the `catch` branch runs in a fresh child scope with its binding set to an error value.
 
-Explicit `throw(error(...))` preserves the original error value, including optional `data`. Ordinary runtime diagnostics such as invalid builtin calls or import-time runtime failures are catchable too, but they are normalized to `error(message)` values. Loop control such as `break` and `continue` is not catchable.
+Explicit `throw(error(...))` preserves the original error value, including optional `data`. Ordinary runtime diagnostics such as invalid standard-library calls or import-time runtime failures are catchable too, but they are normalized to `error(message)` values. Loop control such as `break` and `continue` is not catchable.
 
 `match` evaluates its subject once and checks cases from top to bottom. The first matching case wins. Supported patterns for now are:
 
@@ -251,15 +250,19 @@ As a safety rail, interpolation stays in ordinary expression positions. You cann
 
 ## Imports
 
-Imports load another local `.molt` file relative to the importing file:
+Imports load either another local `.molt` file or a standard module:
 
 ```txt
 import "./math.molt"
+import "std:io"
+import "std:meta"
 ```
 
 Current import behavior:
 
-- the imported file runs in its own module scope with access to builtins
+- there is no implicit prelude and no ambient builtins
+- `std:` imports load built-in standard modules directly
+- local imported files run in their own module scope with no automatic access to standard modules
 - the imported file does not automatically see the caller's local bindings
 - only explicitly exported top-level bindings are introduced into the current scope
 - non-exported module-local bindings stay private to the module
@@ -277,6 +280,7 @@ export add
 export base
 
 # main.molt
+import "std:io"
 import "./math.molt"
 print(add(base, 2))
 ```
@@ -328,9 +332,15 @@ f(7)   # 17
 
 Here the generated parameter `x` shadows the free `x` inside `$body`, while `outer` still resolves through the code value's captured environment.
 
-## Builtins
+## Standard Library
 
-See the auto-generated **[Builtins Reference](/reference/builtins)** for a full listing of every built-in function with signatures and descriptions.
+```txt
+import "std:io"
+import "std:meta"
+import "std:collections"
+```
+
+See the auto-generated **[Standard Library Reference](/reference/standard-library)** for the full module listing and exported functions.
 
 ## REPL
 
@@ -347,7 +357,7 @@ Running `molt` with no file starts a stateful REPL.
 
 ## Display
 
-Display is source-like and stable enough for tests.
+Display is source-like and stable enough for tests. Import `std:meta` when you want to call `show(...)`.
 
 Examples:
 

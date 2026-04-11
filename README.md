@@ -7,7 +7,6 @@ Core primitives:
 ```txt
 @{ ... }   # quote code
 ~{ ... }   # define a mutation
-eval(x)    # run quoted code
 ```
 
 > `@molt` is pre-alpha software. The language, implementation, and documentation are all in early stages of development. Expect breaking changes and incomplete features. Feedback and contributions are very welcome!
@@ -29,7 +28,7 @@ go vet ./...
 Run a program:
 
 ```powershell
-go run ./cmd/molt ./examples/basic_mutation.molt
+go run ./cmd/molt ./examples/basic/basic_mutation.molt
 ```
 
 Format the codebase:
@@ -50,6 +49,8 @@ Convenience wrappers are also available:
 ## Example
 
 ```txt
+import "std:io"
+
 fn add(a, b) = a + b
 fn mul = add ~{ + -> * }
 

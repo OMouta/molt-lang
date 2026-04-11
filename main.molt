@@ -1,1 +1,3 @@
-print("hi")
+import io from "std:io"
+
+io.print("hi")

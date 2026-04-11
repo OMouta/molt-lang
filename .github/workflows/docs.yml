@@ -23,7 +23,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Generate docs (builtins + examples)
+      - name: Generate docs (standard library + examples)
         run: go run ./cmd/docgen
 
       - uses: actions/setup-node@v4

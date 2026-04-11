@@ -18,7 +18,7 @@ The TextMate grammar highlights:
 - `import` and `export`
 - `fn`, `if`, `else`, `and`, `or`, `not`
 - `true`, `false`, `nil`
-- builtins like `eval`, `type`, `len`, `push`, `show`, `print`
+- common standard-library names like `eval`, `type`, `len`, `push`, `show`, `print`
 - quote and mutation introducers: `@{` and `~{`
 - operators, assignment, and arrows
 - function names in `fn name(...)`

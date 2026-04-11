@@ -12,7 +12,7 @@ export default defineConfig({
 
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
-      { text: 'Builtins', link: '/reference/builtins' },
+      { text: 'Standard Library', link: '/reference/standard-library' },
       { text: 'Examples', link: '/reference/examples' },
     ],
 
@@ -27,7 +27,7 @@ export default defineConfig({
       {
         text: 'Reference',
         items: [
-          { text: 'Builtins', link: '/reference/builtins' },
+          { text: 'Standard Library', link: '/reference/standard-library' },
           { text: 'Examples', link: '/reference/examples' },
         ],
       },

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"molt/internal/ast"
@@ -11,6 +12,20 @@ import (
 	"molt/internal/parser"
 	"molt/internal/runtime"
 )
+
+func stdImports(paths ...string) string {
+	var builder strings.Builder
+	for _, path := range paths {
+		name := path[strings.LastIndex(path, ":")+1:]
+		builder.WriteString("import ")
+		builder.WriteString(name)
+		builder.WriteString(` from "`)
+		builder.WriteString(path)
+		builder.WriteString("\"\n")
+	}
+
+	return builder.String()
+}
 
 func TestEvaluateLiteralsListsAndIdentifierLookups(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
@@ -186,18 +201,18 @@ func TestEvaluateRecordFieldAssignmentMutatesInPlaceAndCreatesFields(t *testing.
 }
 
 func TestEvaluateErrorValuesExposeFieldsAndHelperBuiltins(t *testing.T) {
-	result := mustEval(t, runtime.NewEnvironment(nil), "error_values.molt", ""+
-		"err = error(\"missing file\", record { path: \"note.txt\" })\n"+
+	result := mustEval(t, runtime.NewEnvironment(nil), "error_values.molt", stdImports("std:errors", "std:meta", "std:collections")+
+		"err = errors.error(\"missing file\", record { path: \"note.txt\" })\n"+
 		"[\n"+
-		"  type(err),\n"+
+		"  meta.type(err),\n"+
 		"  err.message,\n"+
 		"  err.data.path,\n"+
 		"  err[\"message\"],\n"+
-		"  contains(err, \"data\"),\n"+
-		"  keys(err),\n"+
-		"  values(err),\n"+
-		"  len(err),\n"+
-		"  show(err)\n"+
+		"  collections.contains(err, \"data\"),\n"+
+		"  collections.keys(err),\n"+
+		"  collections.values(err),\n"+
+		"  collections.len(err),\n"+
+		"  meta.show(err)\n"+
 		"]",
 	)
 
@@ -207,7 +222,7 @@ func TestEvaluateErrorValuesExposeFieldsAndHelperBuiltins(t *testing.T) {
 }
 
 func TestEvaluateThrowRaisesRuntimeDiagnosticWithDataNote(t *testing.T) {
-	_, err := evalStringWithEvaluator(nil, runtime.NewEnvironment(nil), "throw_data.molt", `throw(error("boom", record { code: 7 }))`)
+	_, err := evalStringWithEvaluator(nil, runtime.NewEnvironment(nil), "throw_data.molt", stdImports("std:errors")+`errors.throw(errors.error("boom", record { code: 7 }))`)
 	runtimeErr := expectRuntimeError(t, err)
 
 	diag := runtimeErr.Diagnostic()
@@ -215,8 +230,8 @@ func TestEvaluateThrowRaisesRuntimeDiagnosticWithDataNote(t *testing.T) {
 		t.Fatalf("message = %q, want %q", diag.Message, "boom")
 	}
 
-	if diag.Span.Start.Line != 1 || diag.Span.Start.Column != 1 {
-		t.Fatalf("throw span start = %d:%d, want 1:1", diag.Span.Start.Line, diag.Span.Start.Column)
+	if diag.Span.Start.Line != 2 || diag.Span.Start.Column != 1 {
+		t.Fatalf("throw span start = %d:%d, want 2:1", diag.Span.Start.Line, diag.Span.Start.Column)
 	}
 
 	if len(diag.Notes) != 1 {
@@ -239,24 +254,24 @@ func TestEvaluateThrowPreservesSourceSpanAcrossFunctionAndEvalBoundaries(t *test
 		{
 			name: "function body",
 			path: "throw_function.molt",
-			input: "" +
+			input: stdImports("std:errors") +
 				"fn fail() = {\n" +
 				"  1\n" +
-				"  throw(error(\"boom\"))\n" +
+				"  errors.throw(errors.error(\"boom\"))\n" +
 				"}\n" +
 				"fail()",
-			line:   3,
+			line:   4,
 			column: 3,
 		},
 		{
 			name: "eval body",
 			path: "throw_eval.molt",
-			input: "" +
+			input: stdImports("std:errors", "std:meta") +
 				"code = @{\n" +
-				"  throw(error(\"boom\"))\n" +
+				"  errors.throw(errors.error(\"boom\"))\n" +
 				"}\n" +
-				"eval(code)",
-			line:   2,
+				"meta.eval(code)",
+			line:   4,
 			column: 3,
 		},
 	}
@@ -298,8 +313,8 @@ func TestEvaluateTryCatchReturnsBodyValueWhenNoFailureOccurs(t *testing.T) {
 }
 
 func TestEvaluateTryCatchReceivesThrownErrorValue(t *testing.T) {
-	result := mustEval(t, runtime.NewEnvironment(nil), "try_throw.molt", ""+
-		"try throw(error(\"boom\", record { code: 7 })) catch err -> [err.message, err.data.code]",
+	result := mustEval(t, runtime.NewEnvironment(nil), "try_throw.molt", stdImports("std:errors")+
+		"try errors.throw(errors.error(\"boom\", record { code: 7 })) catch err -> [err.message, err.data.code]",
 	)
 
 	if got := runtime.ShowValue(result); got != `["boom", 7]` {
@@ -308,8 +323,8 @@ func TestEvaluateTryCatchReceivesThrownErrorValue(t *testing.T) {
 }
 
 func TestEvaluateTryCatchConvertsRuntimeDiagnosticsToErrorValues(t *testing.T) {
-	result := mustEval(t, runtime.NewEnvironment(nil), "try_runtime_error.molt", ""+
-		"try len(1) catch err -> [type(err), err.message]",
+	result := mustEval(t, runtime.NewEnvironment(nil), "try_runtime_error.molt", stdImports("std:collections", "std:meta")+
+		"try collections.len(1) catch err -> [meta.type(err), err.message]",
 	)
 
 	values := expectValue[*runtime.ListValue](t, result)
@@ -452,7 +467,7 @@ func TestEvaluateForInLoopsReturnNilAndUseIterationLocalScope(t *testing.T) {
 
 func TestEvaluateForInLoopsSupportDestructuringBindings(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
-	result := mustEval(t, env, "for_in_destructuring.molt", ""+
+	result := mustEval(t, env, "for_in_destructuring.molt", stdImports("std:collections")+
 		"total = 0\n"+
 		"pairs = [[1, 2], [3, 4]]\n"+
 		"for [left, right] in pairs -> total = total + left + right\n"+
@@ -460,7 +475,7 @@ func TestEvaluateForInLoopsSupportDestructuringBindings(t *testing.T) {
 		"people = [record { name: \"molt\", age: 2 }, record { name: \"bolt\", age: 3 }]\n"+
 		"for record { name: name, age: age } in people -> {\n"+
 		"  total = total + age\n"+
-		"  push(names, name)\n"+
+		"  collections.push(names, name)\n"+
 		"}\n"+
 		"[total, names]",
 	)
@@ -479,9 +494,9 @@ func TestEvaluateForInLoopsSupportDestructuringBindings(t *testing.T) {
 }
 
 func TestEvaluateForInLoopIteratesStringsByUnicodeCodePoint(t *testing.T) {
-	result := mustEval(t, runtime.NewEnvironment(nil), "for_in_string.molt", ""+
+	result := mustEval(t, runtime.NewEnvironment(nil), "for_in_string.molt", stdImports("std:collections")+
 		"chars = []\n"+
-		"for ch in \"aé\" -> push(chars, ch)\n"+
+		"for ch in \"aé\" -> collections.push(chars, ch)\n"+
 		"chars",
 	)
 
@@ -491,13 +506,13 @@ func TestEvaluateForInLoopIteratesStringsByUnicodeCodePoint(t *testing.T) {
 }
 
 func TestEvaluateLoopControlSupportsBreakContinueAndNestedLoops(t *testing.T) {
-	result := mustEval(t, runtime.NewEnvironment(nil), "loop_control.molt", ""+
+	result := mustEval(t, runtime.NewEnvironment(nil), "loop_control.molt", stdImports("std:collections")+
 		"pairs = []\n"+
 		"for outer in [1, 2, 3] -> {\n"+
 		"  if outer == 2 -> continue else -> nil\n"+
 		"  for inner in [10, 20, 30] -> {\n"+
 		"    if inner == 30 -> break else -> nil\n"+
-		"    push(pairs, outer + inner)\n"+
+		"    collections.push(pairs, outer + inner)\n"+
 		"  }\n"+
 		"}\n"+
 		"pairs",
@@ -529,10 +544,10 @@ func TestEvaluateOperatorsConditionalsAndShortCircuiting(t *testing.T) {
 }
 
 func TestEvaluateConditionalWithoutElseReturnsNilWhenFalse(t *testing.T) {
-	result := mustEval(t, runtime.NewEnvironment(nil), "if_without_else.molt", ""+
+	result := mustEval(t, runtime.NewEnvironment(nil), "if_without_else.molt", stdImports("std:collections")+
 		"steps = []\n"+
-		"hit = if true -> push(steps, 1)\n"+
-		"miss = if false -> push(steps, 2)\n"+
+		"hit = if true -> collections.push(steps, 1)\n"+
+		"miss = if false -> collections.push(steps, 2)\n"+
 		"[hit, miss, steps]",
 	)
 
@@ -604,8 +619,8 @@ func TestEvaluateImportLoadsRelativeModuleBindings(t *testing.T) {
 	}, nil)
 
 	result, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, ""+
-		"import \"./lib.molt\"\n"+
-		"bump(answer)",
+		"import lib from \"./lib.molt\"\n"+
+		"lib.bump(lib.answer)",
 	)
 	if err != nil {
 		t.Fatalf("eval failed: %v", err)
@@ -623,11 +638,12 @@ func TestEvaluateImportCachesModulesWithinOneRun(t *testing.T) {
 	libPath := filepath.Join(dir, "lib.molt")
 
 	files := map[string]string{
-		libPath: "" +
+		libPath: stdImports("std:collections") +
+			"" +
 			"xs = []\n" +
 			"fn tick() = {\n" +
-			"  push(xs, 1)\n" +
-			"  len(xs)\n" +
+			"  collections.push(xs, 1)\n" +
+			"  collections.len(xs)\n" +
 			"}\n" +
 			"export tick",
 	}
@@ -644,10 +660,10 @@ func TestEvaluateImportCachesModulesWithinOneRun(t *testing.T) {
 	}, nil)
 
 	result, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, ""+
-		"import \"./lib.molt\"\n"+
-		"a = tick()\n"+
-		"import \"./lib.molt\"\n"+
-		"b = tick()\n"+
+		"import m1 from \"./lib.molt\"\n"+
+		"a = m1.tick()\n"+
+		"import m2 from \"./lib.molt\"\n"+
+		"b = m2.tick()\n"+
 		"[a, b]",
 	)
 	if err != nil {
@@ -685,8 +701,8 @@ func TestEvaluateImportUsesExportedFunctionsWithoutLeakingPrivateBindings(t *tes
 	}, nil)
 
 	result, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, ""+
-		"import \"./lib.molt\"\n"+
-		"add2(2)",
+		"import lib from \"./lib.molt\"\n"+
+		"lib.add2(2)",
 	)
 	if err != nil {
 		t.Fatalf("eval failed: %v", err)
@@ -698,12 +714,12 @@ func TestEvaluateImportUsesExportedFunctionsWithoutLeakingPrivateBindings(t *tes
 	}
 
 	_, err = evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, ""+
-		"import \"./lib.molt\"\n"+
-		"helper",
+		"import lib from \"./lib.molt\"\n"+
+		"lib.helper",
 	)
 	runtimeErr := expectRuntimeError(t, err)
-	if runtimeErr.Diagnostic().Message != `undefined identifier "helper"` {
-		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, `undefined identifier "helper"`)
+	if runtimeErr.Diagnostic().Message != `record has no field "helper"` {
+		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, `record has no field "helper"`)
 	}
 }
 
@@ -713,7 +729,7 @@ func TestEvaluateTryCatchHandlesThrownImportFailures(t *testing.T) {
 	libPath := filepath.Join(dir, "lib.molt")
 
 	files := map[string]string{
-		libPath: `throw(error("module failed", record { source: "import" }))`,
+		libPath: stdImports("std:errors") + `errors.throw(errors.error("module failed", record { source: "import" }))`,
 	}
 
 	evaluator := NewWithRuntime(nil, nil, nil, func(path string) ([]byte, error) {
@@ -725,7 +741,7 @@ func TestEvaluateTryCatchHandlesThrownImportFailures(t *testing.T) {
 		return []byte(value), nil
 	}, nil)
 
-	result, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, `try import "./lib.molt" catch err -> [err.message, err.data.source]`)
+	result, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, `try import lib from "./lib.molt" catch err -> [err.message, err.data.source]`)
 	if err != nil {
 		t.Fatalf("eval failed: %v", err)
 	}
@@ -753,7 +769,7 @@ func TestEvaluateTryCatchHandlesRuntimeImportFailures(t *testing.T) {
 		return []byte(value), nil
 	}, nil)
 
-	result, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, `try import "./lib.molt" catch err -> err.message`)
+	result, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, `try import lib from "./lib.molt" catch err -> err.message`)
 	if err != nil {
 		t.Fatalf("eval failed: %v", err)
 	}
@@ -792,39 +808,39 @@ func TestEvaluateRuntimeErrors(t *testing.T) {
 		{name: "top level break", input: "break", message: "break is only allowed inside loops"},
 		{name: "top level continue", input: "continue", message: "continue is only allowed inside loops"},
 		{name: "user arity", input: "f = fn(x) = x\nf()", message: "expected 1 arguments but got 0"},
-		{name: "invalid eval target", input: "eval(10)", message: `eval expects code value, got "number"`},
+		{name: "invalid eval target", input: stdImports("std:meta") + `meta.eval(10)`, message: `eval expects code value, got "number"`},
 		{name: "invalid mutation rule", input: "~{ + -> 1 }", message: `invalid mutation rule 1: operator replacement rules must replace one operator with another`},
 		{name: "invalid mutation operand", input: "code = @{ 1 }\ncode ~ 1", message: `expected mutation value, got "number"`},
-		{name: "invalid len target", input: "len(1)", message: `len expects list, string, record, or error, got "number"`},
-		{name: "invalid push target", input: "push(1, 2)", message: `push expects list as first argument, got "number"`},
-		{name: "invalid error arity", input: "error()", message: "error expects 1 or 2 arguments but got 0"},
-		{name: "invalid error message type", input: "error(1)", message: `error expects string message as first argument, got "number"`},
-		{name: "invalid throw target", input: "throw(1)", message: `throw expects error value, got "number"`},
-		{name: "invalid split target", input: `split(1, ",")`, message: `split expects string as first argument, got "number"`},
-		{name: "invalid join element", input: `join([1], ",")`, message: `join expects list of strings, but element 0 has type "number"`},
-		{name: "invalid trim target", input: `trim(1)`, message: `trim expects string, got "number"`},
-		{name: "invalid lines target", input: `lines(1)`, message: `lines expects string, got "number"`},
-		{name: "invalid replace text", input: `replace(1, "a", "b")`, message: `replace expects string as first argument, got "number"`},
-		{name: "invalid replace old", input: `replace("abc", 1, "b")`, message: `replace expects string as second argument, got "number"`},
-		{name: "invalid replace new", input: `replace("abc", "a", 1)`, message: `replace expects string as third argument, got "number"`},
-		{name: "invalid contains text", input: `contains(1, "a")`, message: `contains expects string, record, or error as first argument, got "number"`},
-		{name: "invalid contains needle", input: `contains("abc", 1)`, message: `contains expects string as second argument, got "number"`},
-		{name: "invalid contains record key", input: `contains(record { answer: 42 }, 1)`, message: `contains expects string key as second argument for records, got "number"`},
-		{name: "invalid contains error key", input: `contains(error("boom"), 1)`, message: `contains expects string key as second argument for errors, got "number"`},
-		{name: "invalid keys target", input: `keys(1)`, message: `keys expects record or error, got "number"`},
-		{name: "invalid values target", input: `values(1)`, message: `values expects record or error, got "number"`},
-		{name: "invalid range arity", input: `range(1, 2, 3)`, message: "range expects 1 or 2 arguments but got 3"},
-		{name: "invalid range integer", input: `range(1.5)`, message: "range expects integer at argument 1, got 1.5"},
-		{name: "invalid map callback", input: `map([1], 1)`, message: `map expects function as second argument, got "number"`},
-		{name: "invalid map callback arity", input: `map([1], fn(a, b, c) = a)`, message: "map callback must accept 1 or 2 arguments, got 3"},
-		{name: "invalid filter callback result", input: `filter([1], fn(x) = x)`, message: `filter callback must return boolean, got "number"`},
-		{name: "invalid to_number parse", input: `to_number("abc")`, message: `to_number could not parse "abc"`},
-		{name: "invalid read_file target", input: "read_file(1)", message: `read_file expects string path, got "number"`},
-		{name: "empty read_file path", input: `read_file("")`, message: "read_file path cannot be empty"},
-		{name: "invalid write_file path", input: `write_file(1, "x")`, message: `write_file expects string path as first argument, got "number"`},
-		{name: "invalid write_file text", input: `write_file("out.txt", 1)`, message: `write_file expects string text as second argument, got "number"`},
-		{name: "empty write_file path", input: `write_file("", "x")`, message: "write_file path cannot be empty"},
-		{name: "empty import path", input: `import ""`, message: "import path cannot be empty"},
+		{name: "invalid len target", input: stdImports("std:collections") + `collections.len(1)`, message: `len expects list, string, record, or error, got "number"`},
+		{name: "invalid push target", input: stdImports("std:collections") + `collections.push(1, 2)`, message: `push expects list as first argument, got "number"`},
+		{name: "invalid error arity", input: stdImports("std:errors") + `errors.error()`, message: "error expects 1 or 2 arguments but got 0"},
+		{name: "invalid error message type", input: stdImports("std:errors") + `errors.error(1)`, message: `error expects string message as first argument, got "number"`},
+		{name: "invalid throw target", input: stdImports("std:errors") + `errors.throw(1)`, message: `throw expects error value, got "number"`},
+		{name: "invalid split target", input: stdImports("std:strings") + `strings.split(1, ",")`, message: `split expects string as first argument, got "number"`},
+		{name: "invalid join element", input: stdImports("std:strings") + `strings.join([1], ",")`, message: `join expects list of strings, but element 0 has type "number"`},
+		{name: "invalid trim target", input: stdImports("std:strings") + `strings.trim(1)`, message: `trim expects string, got "number"`},
+		{name: "invalid lines target", input: stdImports("std:strings") + `strings.lines(1)`, message: `lines expects string, got "number"`},
+		{name: "invalid replace text", input: stdImports("std:strings") + `strings.replace(1, "a", "b")`, message: `replace expects string as first argument, got "number"`},
+		{name: "invalid replace old", input: stdImports("std:strings") + `strings.replace("abc", 1, "b")`, message: `replace expects string as second argument, got "number"`},
+		{name: "invalid replace new", input: stdImports("std:strings") + `strings.replace("abc", "a", 1)`, message: `replace expects string as third argument, got "number"`},
+		{name: "invalid contains text", input: stdImports("std:collections") + `collections.contains(1, "a")`, message: `contains expects string, record, or error as first argument, got "number"`},
+		{name: "invalid contains needle", input: stdImports("std:collections") + `collections.contains("abc", 1)`, message: `contains expects string as second argument, got "number"`},
+		{name: "invalid contains record key", input: stdImports("std:collections") + `collections.contains(record { answer: 42 }, 1)`, message: `contains expects string key as second argument for records, got "number"`},
+		{name: "invalid contains error key", input: stdImports("std:collections", "std:errors") + `collections.contains(errors.error("boom"), 1)`, message: `contains expects string key as second argument for errors, got "number"`},
+		{name: "invalid keys target", input: stdImports("std:collections") + `collections.keys(1)`, message: `keys expects record or error, got "number"`},
+		{name: "invalid values target", input: stdImports("std:collections") + `collections.values(1)`, message: `values expects record or error, got "number"`},
+		{name: "invalid range arity", input: stdImports("std:collections") + `collections.range(1, 2, 3)`, message: "range expects 1 or 2 arguments but got 3"},
+		{name: "invalid range integer", input: stdImports("std:collections") + `collections.range(1.5)`, message: "range expects integer at argument 1, got 1.5"},
+		{name: "invalid map callback", input: stdImports("std:collections") + `collections.map([1], 1)`, message: `map expects function as second argument, got "number"`},
+		{name: "invalid map callback arity", input: stdImports("std:collections") + `collections.map([1], fn(a, b, c) = a)`, message: "map callback must accept 1 or 2 arguments, got 3"},
+		{name: "invalid filter callback result", input: stdImports("std:collections") + `collections.filter([1], fn(x) = x)`, message: `filter callback must return boolean, got "number"`},
+		{name: "invalid to_number parse", input: stdImports("std:meta") + `meta.to_number("abc")`, message: `to_number could not parse "abc"`},
+		{name: "invalid read_file target", input: stdImports("std:io") + `io.read_file(1)`, message: `read_file expects string path, got "number"`},
+		{name: "empty read_file path", input: stdImports("std:io") + `io.read_file("")`, message: "read_file path cannot be empty"},
+		{name: "invalid write_file path", input: stdImports("std:io") + `io.write_file(1, "x")`, message: `write_file expects string path as first argument, got "number"`},
+		{name: "invalid write_file text", input: stdImports("std:io") + `io.write_file("out.txt", 1)`, message: `write_file expects string text as second argument, got "number"`},
+		{name: "empty write_file path", input: stdImports("std:io") + `io.write_file("", "x")`, message: "write_file path cannot be empty"},
+		{name: "empty import path", input: `import x from ""`, message: "import path cannot be empty"},
 	}
 
 	for _, tc := range tests {
@@ -853,9 +869,9 @@ func TestEvaluateLoopControlDoesNotCrossFunctionOrEvalBoundaries(t *testing.T) {
 		},
 		{
 			name: "eval continue",
-			input: "" +
+			input: stdImports("std:meta") +
 				"code = @{ continue }\n" +
-				"while true -> eval(code)",
+				"while true -> meta.eval(code)",
 			message: "continue is only allowed inside loops",
 		},
 	}
@@ -876,7 +892,7 @@ func TestEvaluateImportReadFailure(t *testing.T) {
 		return nil, errors.New("boom")
 	}, nil)
 
-	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), "main.molt", `import "./missing.molt"`)
+	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), "main.molt", `import x from "./missing.molt"`)
 	runtimeErr := expectRuntimeError(t, err)
 	if runtimeErr.Diagnostic().Message != `import failed for "./missing.molt": boom` {
 		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, `import failed for "./missing.molt": boom`)
@@ -889,7 +905,7 @@ func TestEvaluateImportDirectCycleFailure(t *testing.T) {
 	loopPath := filepath.Join(dir, "loop.molt")
 
 	files := map[string]string{
-		loopPath: `import "./loop.molt"`,
+		loopPath: `import loop from "./loop.molt"`,
 	}
 
 	evaluator := NewWithRuntime(nil, nil, nil, func(path string) ([]byte, error) {
@@ -901,7 +917,7 @@ func TestEvaluateImportDirectCycleFailure(t *testing.T) {
 		return []byte(value), nil
 	}, nil)
 
-	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, `import "./loop.molt"`)
+	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, `import loop from "./loop.molt"`)
 	runtimeErr := expectRuntimeError(t, err)
 	want := "import cycle detected: " + filepath.ToSlash(loopPath) + " -> " + filepath.ToSlash(loopPath)
 	if runtimeErr.Diagnostic().Message != want {
@@ -916,8 +932,8 @@ func TestEvaluateImportIndirectCycleFailure(t *testing.T) {
 	bPath := filepath.Join(dir, "b.molt")
 
 	files := map[string]string{
-		aPath: `import "./b.molt"`,
-		bPath: `import "./a.molt"`,
+		aPath: `import b from "./b.molt"`,
+		bPath: `import a from "./a.molt"`,
 	}
 
 	evaluator := NewWithRuntime(nil, nil, nil, func(path string) ([]byte, error) {
@@ -929,7 +945,7 @@ func TestEvaluateImportIndirectCycleFailure(t *testing.T) {
 		return []byte(value), nil
 	}, nil)
 
-	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, `import "./a.molt"`)
+	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, `import a from "./a.molt"`)
 	runtimeErr := expectRuntimeError(t, err)
 	want := "import cycle detected: " + filepath.ToSlash(aPath) + " -> " + filepath.ToSlash(bPath) + " -> " + filepath.ToSlash(aPath)
 	if runtimeErr.Diagnostic().Message != want {
@@ -955,7 +971,7 @@ func TestEvaluateImportUndefinedExportFailure(t *testing.T) {
 		return []byte(value), nil
 	}, nil)
 
-	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, `import "./lib.molt"`)
+	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, `import lib from "./lib.molt"`)
 	runtimeErr := expectRuntimeError(t, err)
 	if runtimeErr.Diagnostic().Message != `exported name "missing" is not defined at module top level` {
 		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, `exported name "missing" is not defined at module top level`)
@@ -983,17 +999,33 @@ func TestEvaluateImportDuplicateExportFailure(t *testing.T) {
 		return []byte(value), nil
 	}, nil)
 
-	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, `import "./lib.molt"`)
+	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), mainPath, `import lib from "./lib.molt"`)
 	runtimeErr := expectRuntimeError(t, err)
 	if runtimeErr.Diagnostic().Message != `duplicate export "value"` {
 		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, `duplicate export "value"`)
 	}
 }
 
+func TestEvaluateImportRejectsUnknownStandardModule(t *testing.T) {
+	_, err := evalStringWithEvaluator(nil, runtime.NewEnvironment(nil), "unknown_std.molt", `import x from "std:missing"`)
+	runtimeErr := expectRuntimeError(t, err)
+	if runtimeErr.Diagnostic().Message != `unknown standard module "std:missing"` {
+		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, `unknown standard module "std:missing"`)
+	}
+}
+
+func TestEvaluateDoesNotProvideImplicitPrelude(t *testing.T) {
+	_, err := evalStringWithEvaluator(nil, runtime.NewEnvironment(nil), "no_prelude.molt", `print("hi")`)
+	runtimeErr := expectRuntimeError(t, err)
+	if runtimeErr.Diagnostic().Message != `undefined identifier "print"` {
+		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, `undefined identifier "print"`)
+	}
+}
+
 func TestEvaluateStdinReadFailure(t *testing.T) {
 	evaluator := NewWithIO(errReader{err: errors.New("boom")}, nil)
 
-	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), "stdin_failure.molt", "stdin()")
+	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), "stdin_failure.molt", stdImports("std:io")+"io.stdin()")
 	runtimeErr := expectRuntimeError(t, err)
 	if runtimeErr.Diagnostic().Message != "stdin failed: boom" {
 		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, "stdin failed: boom")
@@ -1003,7 +1035,7 @@ func TestEvaluateStdinReadFailure(t *testing.T) {
 func TestEvaluateInputReadFailure(t *testing.T) {
 	evaluator := NewWithIO(errReader{err: errors.New("boom")}, nil)
 
-	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), "input_failure.molt", "input()")
+	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), "input_failure.molt", stdImports("std:io")+"io.input()")
 	runtimeErr := expectRuntimeError(t, err)
 	if runtimeErr.Diagnostic().Message != "input failed: boom" {
 		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, "input failed: boom")
@@ -1015,7 +1047,7 @@ func TestEvaluateReadFileFailure(t *testing.T) {
 		return nil, errors.New("boom")
 	}, nil)
 
-	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), "read_file_failure.molt", `read_file("missing.txt")`)
+	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), "read_file_failure.molt", stdImports("std:io")+`io.read_file("missing.txt")`)
 	runtimeErr := expectRuntimeError(t, err)
 	if runtimeErr.Diagnostic().Message != `read_file failed for "missing.txt": boom` {
 		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, `read_file failed for "missing.txt": boom`)
@@ -1027,7 +1059,7 @@ func TestEvaluateWriteFileFailure(t *testing.T) {
 		return errors.New("boom")
 	})
 
-	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), "write_file_failure.molt", `write_file("missing.txt", "hello")`)
+	_, err := evalStringWithEvaluator(evaluator, runtime.NewEnvironment(nil), "write_file_failure.molt", stdImports("std:io")+`io.write_file("missing.txt", "hello")`)
 	runtimeErr := expectRuntimeError(t, err)
 	if runtimeErr.Diagnostic().Message != `write_file failed for "missing.txt": boom` {
 		t.Fatalf("message = %q, want %q", runtimeErr.Diagnostic().Message, `write_file failed for "missing.txt": boom`)
@@ -1093,10 +1125,10 @@ func TestEvaluateQuoteCreatesCodeValueWithoutRunningIt(t *testing.T) {
 
 func TestEvaluateQuoteInterpolatesSingleNodeCodeValues(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
-	result := mustEval(t, env, "quote_unquote.molt", ""+
+	result := mustEval(t, env, "quote_unquote.molt", stdImports("std:meta")+
 		"part = @{ 1 + 2 }\n"+
 		"code = @{ ~(part) * 3 }\n"+
-		"[eval(code), show(code)]",
+		"[meta.eval(code), meta.show(code)]",
 	)
 
 	values := expectValue[*runtime.ListValue](t, result)
@@ -1117,11 +1149,11 @@ func TestEvaluateQuoteInterpolatesSingleNodeCodeValues(t *testing.T) {
 
 func TestEvaluateNestedQuotesKeepInnerUnquotesDeferred(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
-	result := mustEval(t, env, "nested_quote_unquote.molt", ""+
+	result := mustEval(t, env, "nested_quote_unquote.molt", stdImports("std:meta")+
 		"part = @{ x + 1 }\n"+
 		"outer = @{ @{ ~(part) } }\n"+
-		"inner = eval(outer)\n"+
-		"show(inner)",
+		"inner = meta.eval(outer)\n"+
+		"meta.show(inner)",
 	)
 
 	text := expectValue[*runtime.StringValue](t, result)
@@ -1132,13 +1164,13 @@ func TestEvaluateNestedQuotesKeepInnerUnquotesDeferred(t *testing.T) {
 
 func TestEvaluateQuoteSplicesListsCallsAndBlocks(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
-	result := mustEval(t, env, "quote_splice_eval.molt", ""+
+	result := mustEval(t, env, "quote_splice_eval.molt", stdImports("std:meta", "std:collections")+
 		"items = @{ [1, 2] }\n"+
 		"steps = @{ a = 10\nb = 20 }\n"+
 		"listCode = @{ [0, ~[items], 3] }\n"+
-		"callCode = @{ range(~[items]) }\n"+
+		"callCode = @{ collections.range(~[items]) }\n"+
 		"blockCode = @{ ~[steps]\na + b }\n"+
-		"[eval(listCode), eval(callCode), eval(blockCode), show(listCode), show(callCode), show(blockCode)]",
+		"[meta.eval(listCode), meta.eval(callCode), meta.eval(blockCode), meta.show(listCode), meta.show(callCode), meta.show(blockCode)]",
 	)
 
 	values := expectValue[*runtime.ListValue](t, result)
@@ -1165,8 +1197,8 @@ func TestEvaluateQuoteSplicesListsCallsAndBlocks(t *testing.T) {
 	}
 
 	callText := expectValue[*runtime.StringValue](t, values.Elements[4])
-	if callText.Value != "@{ range(~[items]) }" {
-		t.Fatalf("show(callCode) = %q, want %q", callText.Value, "@{ range(~[items]) }")
+	if callText.Value != "@{ collections.range(~[items]) }" {
+		t.Fatalf("show(callCode) = %q, want %q", callText.Value, "@{ collections.range(~[items]) }")
 	}
 
 	blockText := expectValue[*runtime.StringValue](t, values.Elements[5])
@@ -1195,13 +1227,13 @@ func TestEvaluateMutationLiteralCreatesMutationValueInOrder(t *testing.T) {
 }
 
 func TestEvaluateMutationCapturesRewriteReusableSubtrees(t *testing.T) {
-	result := mustEval(t, runtime.NewEnvironment(nil), "mutation_capture.molt", ""+
+	result := mustEval(t, runtime.NewEnvironment(nil), "mutation_capture.molt", stdImports("std:meta")+
 		"value = 7\n"+
 		"simplify = ~{\n"+
 		"  ($x + 0) -> $x\n"+
 		"  (0 + $x) -> $x\n"+
 		"}\n"+
-		"eval(@{ 0 + (value + 0) } ~ simplify)",
+		"meta.eval(@{ 0 + (value + 0) } ~ simplify)",
 	)
 
 	number := expectValue[*runtime.NumberValue](t, result)
@@ -1211,12 +1243,12 @@ func TestEvaluateMutationCapturesRewriteReusableSubtrees(t *testing.T) {
 }
 
 func TestEvaluateMutationWildcardsAndRestCaptures(t *testing.T) {
-	result := mustEval(t, runtime.NewEnvironment(nil), "mutation_rest.molt", ""+
+	result := mustEval(t, runtime.NewEnvironment(nil), "mutation_rest.molt", stdImports("std:meta")+
 		"simplify = ~{\n"+
 		"  (_ + 0) -> 0\n"+
 		"  [1, ...$tail, 4] -> [0, ...$tail]\n"+
 		"}\n"+
-		"eval(@{ [1, 2, 3, 4] } ~ simplify)",
+		"meta.eval(@{ [1, 2, 3, 4] } ~ simplify)",
 	)
 
 	list := expectValue[*runtime.ListValue](t, result)
@@ -1265,9 +1297,9 @@ func TestEvaluateQuoteSpliceRejectsInvalidTargets(t *testing.T) {
 		},
 		{
 			name: "wrong call shape",
-			input: "" +
+			input: stdImports("std:collections") +
 				"steps = @{ a = 1\nb = 2 }\n" +
-				"@{ range(~[steps]) }",
+				"@{ collections.range(~[steps]) }",
 			message: "splice in call position expects quoted list",
 		},
 		{
@@ -1345,12 +1377,12 @@ func TestEvaluateQuoteValidationRejectsMalformedInterpolationBeforeExecution(t *
 
 func TestEvaluateQuoteInterpolationUsesGeneratedLexicalScope(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
-	result := mustEval(t, env, "quote_hygiene.molt", ""+
+	result := mustEval(t, env, "quote_hygiene.molt", stdImports("std:meta")+
 		"x = 2\n"+
 		"outer = 10\n"+
 		"fragment = @{ x + outer }\n"+
 		"maker = @{ fn(x) = ~(fragment) }\n"+
-		"f = eval(maker)\n"+
+		"f = meta.eval(maker)\n"+
 		"f(5)",
 	)
 
@@ -1367,11 +1399,11 @@ func TestEvaluateQuoteInterpolationUsesGeneratedLexicalScope(t *testing.T) {
 
 func TestEvaluateMutationSubstitutionUsesGeneratedLexicalScope(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
-	result := mustEval(t, env, "mutation_hygiene.molt", ""+
+	result := mustEval(t, env, "mutation_hygiene.molt", stdImports("std:meta")+
 		"x = 2\n"+
 		"outer = 10\n"+
 		"wrap = ~{ $body -> fn(x) = $body }\n"+
-		"f = eval(@{ x + outer } ~ wrap)\n"+
+		"f = meta.eval(@{ x + outer } ~ wrap)\n"+
 		"f(7)",
 	)
 
@@ -1388,13 +1420,13 @@ func TestEvaluateMutationSubstitutionUsesGeneratedLexicalScope(t *testing.T) {
 
 func TestEvaluateCodeMutationPreservesCapturedEnvironmentAndOriginal(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
-	result := mustEval(t, env, "code_mutation.molt", ""+
+	result := mustEval(t, env, "code_mutation.molt", stdImports("std:meta")+
 		"x = 2\n"+
 		"code = @{ x + 3 }\n"+
 		"mut = ~{ + -> * }\n"+
 		"mutated = code ~ mut\n"+
 		"x = 4\n"+
-		"[eval(code), eval(mutated), eval(code)]",
+		"[meta.eval(code), meta.eval(mutated), meta.eval(code)]",
 	)
 
 	values := expectValue[*runtime.ListValue](t, result)
@@ -1484,12 +1516,12 @@ func TestEvaluateFunctionMutationPreservesParametersEnvironmentAndOriginal(t *te
 
 func TestEvaluateMutationCompositionConcatenatesRulesWithoutChangingInputs(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
-	result := mustEval(t, env, "mutation_composition.molt", ""+
+	result := mustEval(t, env, "mutation_composition.molt", stdImports("std:meta")+
 		"m1 = ~{ 1 -> 2 }\n"+
 		"m2 = ~{ 2 -> 3 }\n"+
 		"m3 = m1 ~ m2\n"+
 		"code = @{ 1 }\n"+
-		"eval(code ~ m3)",
+		"meta.eval(code ~ m3)",
 	)
 
 	number := expectValue[*runtime.NumberValue](t, result)
@@ -1513,11 +1545,11 @@ func TestEvaluateMutationCompositionConcatenatesRulesWithoutChangingInputs(t *te
 
 func TestEvalUsesCapturedEnvironmentByReference(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
-	result := mustEval(t, env, "captured_reference.molt", ""+
+	result := mustEval(t, env, "captured_reference.molt", stdImports("std:meta")+
 		"x = 10\n"+
 		"code = @{ x + 1 }\n"+
 		"x = 20\n"+
-		"eval(code)",
+		"meta.eval(code)",
 	)
 
 	number := expectValue[*runtime.NumberValue](t, result)
@@ -1528,10 +1560,10 @@ func TestEvalUsesCapturedEnvironmentByReference(t *testing.T) {
 
 func TestEvalIgnoresCallerLocalScopeOutsideCapturedChain(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
-	result := mustEval(t, env, "caller_isolation.molt", ""+
+	result := mustEval(t, env, "caller_isolation.molt", stdImports("std:meta")+
 		"x = 10\n"+
 		"code = @{ x + 1 }\n"+
-		"fn run(x) = eval(code)\n"+
+		"fn run(x) = meta.eval(code)\n"+
 		"run(20)",
 	)
 
@@ -1543,11 +1575,11 @@ func TestEvalIgnoresCallerLocalScopeOutsideCapturedChain(t *testing.T) {
 
 func TestEvalReexecutesFreshlyOnEachCall(t *testing.T) {
 	env := runtime.NewEnvironment(nil)
-	result := mustEval(t, env, "repeated_eval.molt", ""+
+	result := mustEval(t, env, "repeated_eval.molt", stdImports("std:meta")+
 		"x = 0\n"+
 		"code = @{ x = x + 1 }\n"+
-		"eval(code)\n"+
-		"eval(code)\n"+
+		"meta.eval(code)\n"+
+		"meta.eval(code)\n"+
 		"x",
 	)
 
@@ -1573,45 +1605,45 @@ func TestEvaluateBuiltins(t *testing.T) {
 	}, func(path string, data []byte) error {
 		files[path] = string(data)
 		return nil
-	}), env, "builtins.molt", ""+
+	}), env, "builtins.molt", stdImports("std:collections", "std:meta", "std:cli", "std:io")+
 		"xs = [1]\n"+
-		"same = push(xs, 2)\n"+
-		"rec = record { name: \"molt\", size: len(xs) }\n"+
+		"same = collections.push(xs, 2)\n"+
+		"rec = record { name: \"molt\", size: collections.len(xs) }\n"+
 		"fn add(a, b) = a + b\n"+
 		"code = @{ 1 + 2 }\n"+
 		"mut = ~{ x -> y\n1 -> 2 }\n"+
-		"cli1 = args()\n"+
-		"cli2 = args()\n"+
-		"push(cli1, \"extra\")\n"+
-		"file1 = read_file(\"note.txt\")\n"+
-		"file2 = read_file(\"note.txt\")\n"+
-		"write_file(\"written.txt\", \"saved\")\n"+
-		"write_file(\"written.txt\", \"updated\")\n"+
-		"written = read_file(\"written.txt\")\n"+
-		"line1 = input()\n"+
-		"line2 = input()\n"+
-		"line3 = input()\n"+
-		"input1 = stdin()\n"+
-		"input2 = stdin()\n"+
+		"cli1 = cli.args()\n"+
+		"cli2 = cli.args()\n"+
+		"collections.push(cli1, \"extra\")\n"+
+		"file1 = io.read_file(\"note.txt\")\n"+
+		"file2 = io.read_file(\"note.txt\")\n"+
+		"io.write_file(\"written.txt\", \"saved\")\n"+
+		"io.write_file(\"written.txt\", \"updated\")\n"+
+		"written = io.read_file(\"written.txt\")\n"+
+		"line1 = io.input()\n"+
+		"line2 = io.input()\n"+
+		"line3 = io.input()\n"+
+		"input1 = io.stdin()\n"+
+		"input2 = io.stdin()\n"+
 		"[\n"+
-		"  type(1),\n"+
-		"  type(\"x\"),\n"+
-		"  type(true),\n"+
-		"  type(nil),\n"+
-		"  type(xs),\n"+
-		"  type(rec),\n"+
-		"  type(add),\n"+
-		"  type(eval),\n"+
-		"  type(code),\n"+
-		"  type(mut),\n"+
-		"  len(xs),\n"+
-		"  len(\"aé\"),\n"+
+		"  meta.type(1),\n"+
+		"  meta.type(\"x\"),\n"+
+		"  meta.type(true),\n"+
+		"  meta.type(nil),\n"+
+		"  meta.type(xs),\n"+
+		"  meta.type(rec),\n"+
+		"  meta.type(add),\n"+
+		"  meta.type(meta.eval),\n"+
+		"  meta.type(code),\n"+
+		"  meta.type(mut),\n"+
+		"  collections.len(xs),\n"+
+		"  collections.len(\"aé\"),\n"+
 		"  same == xs,\n"+
-		"  show(xs),\n"+
-		"  show(rec),\n"+
-		"  show(code),\n"+
-		"  show(mut),\n"+
-		"  show(add),\n"+
+		"  meta.show(xs),\n"+
+		"  meta.show(rec),\n"+
+		"  meta.show(code),\n"+
+		"  meta.show(mut),\n"+
+		"  meta.show(add),\n"+
 		"  cli1,\n"+
 		"  cli2,\n"+
 		"  file1,\n"+
@@ -1727,22 +1759,22 @@ func TestEvaluateBuiltins(t *testing.T) {
 }
 
 func TestEvaluateStdlibHelpers(t *testing.T) {
-	result := mustEval(t, runtime.NewEnvironment(nil), "stdlib_helpers.molt", ""+
-		"parts = split(\"a,b,c\", \",\")\n"+
-		"joined = join(parts, \"-\")\n"+
-		"trimmed = trim(\"  hello\\n\")\n"+
-		"lineParts = lines(\"one\\r\\ntwo\\nthree\\n\")\n"+
-		"lineParts2 = lines(\"\")\n"+
-		"replaced = replace(\"molt molt\", \"molt\", \"bolt\")\n"+
-		"hasNeedle = contains(\"mutation\", \"tat\")\n"+
-		"hasMissing = contains(\"mutation\", \"zzz\")\n"+
-		"xs = range(5)\n"+
-		"ys = range(2, 5)\n"+
-		"doubled = map(xs, fn(x) = x * 2)\n"+
-		"indexed = map(xs, fn(x, i) = x + i)\n"+
-		"evens = filter(xs, fn(x) = x % 2 == 0)\n"+
-		"prefix = filter(xs, fn(x, i) = i < 2)\n"+
-		"typed = map([1, \"x\", true], type)\n"+
+	result := mustEval(t, runtime.NewEnvironment(nil), "stdlib_helpers.molt", stdImports("std:strings", "std:collections", "std:meta")+
+		"parts = strings.split(\"a,b,c\", \",\")\n"+
+		"joined = strings.join(parts, \"-\")\n"+
+		"trimmed = strings.trim(\"  hello\\n\")\n"+
+		"lineParts = strings.lines(\"one\\r\\ntwo\\nthree\\n\")\n"+
+		"lineParts2 = strings.lines(\"\")\n"+
+		"replaced = strings.replace(\"molt molt\", \"molt\", \"bolt\")\n"+
+		"hasNeedle = collections.contains(\"mutation\", \"tat\")\n"+
+		"hasMissing = collections.contains(\"mutation\", \"zzz\")\n"+
+		"xs = collections.range(5)\n"+
+		"ys = collections.range(2, 5)\n"+
+		"doubled = collections.map(xs, fn(x) = x * 2)\n"+
+		"indexed = collections.map(xs, fn(x, i) = x + i)\n"+
+		"evens = collections.filter(xs, fn(x) = x % 2 == 0)\n"+
+		"prefix = collections.filter(xs, fn(x, i) = i < 2)\n"+
+		"typed = collections.map([1, \"x\", true], meta.type)\n"+
 		"[\n"+
 		"  parts,\n"+
 		"  joined,\n"+
@@ -1759,10 +1791,10 @@ func TestEvaluateStdlibHelpers(t *testing.T) {
 		"  evens,\n"+
 		"  prefix,\n"+
 		"  typed,\n"+
-		"  to_string([1, 2]),\n"+
-		"  to_string(nil),\n"+
-		"  to_number(\" 12.5 \"),\n"+
-		"  to_number(7)\n"+
+		"  meta.to_string([1, 2]),\n"+
+		"  meta.to_string(nil),\n"+
+		"  meta.to_number(\" 12.5 \"),\n"+
+		"  meta.to_number(7)\n"+
 		"]",
 	)
 
@@ -1849,14 +1881,14 @@ func TestEvaluateStdlibHelpers(t *testing.T) {
 }
 
 func TestEvaluateRecordHelpers(t *testing.T) {
-	result := mustEval(t, runtime.NewEnvironment(nil), "record_helpers.molt", ""+
+	result := mustEval(t, runtime.NewEnvironment(nil), "record_helpers.molt", stdImports("std:collections")+
 		"item = record { name: \"molt\", nested: record { ok: true }, count: 2 }\n"+
 		"[\n"+
-		"  len(item),\n"+
-		"  contains(item, \"name\"),\n"+
-		"  contains(item, \"missing\"),\n"+
-		"  keys(item),\n"+
-		"  values(item)\n"+
+		"  collections.len(item),\n"+
+		"  collections.contains(item, \"name\"),\n"+
+		"  collections.contains(item, \"missing\"),\n"+
+		"  collections.keys(item),\n"+
+		"  collections.values(item)\n"+
 		"]",
 	)
 
@@ -1891,10 +1923,10 @@ func TestEvaluatePrintWritesDisplayOutputAndReturnsNil(t *testing.T) {
 	var output bytes.Buffer
 	evaluator := &Evaluator{output: &output}
 
-	value, err := evalStringWithEvaluator(evaluator, env, "print.molt", ""+
+	value, err := evalStringWithEvaluator(evaluator, env, "print.molt", stdImports("std:io")+
 		"xs = [1, 2]\n"+
-		"print(\"hello\")\n"+
-		"print(xs)",
+		"io.print(\"hello\")\n"+
+		"io.print(xs)",
 	)
 	if err != nil {
 		t.Fatalf("eval failed: %v", err)

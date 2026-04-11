@@ -1,13 +1,16 @@
+import collections from "std:collections"
+import io from "std:io"
+
 total = 0
 for item in [1, 2, 3] -> {
   total = total + item
 }
 
-print(total)
+io.print(total)
 
 chars = []
 for ch in "ok" -> {
-  push(chars, ch)
+  collections.push(chars, ch)
 }
 
-print(chars)
+io.print(chars)

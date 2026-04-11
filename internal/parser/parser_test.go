@@ -8,7 +8,7 @@ import (
 )
 
 func TestParsePrimaryFormsAndSequences(t *testing.T) {
-	program := mustParse(t, "primary.molt", "{\n  [1, 2]\n  (\"ok\")\n  nil\n  break\n  continue\n  export value\n  import \"./lib.molt\"\n  record { answer: 42 }\n}")
+	program := mustParse(t, "primary.molt", "{\n  [1, 2]\n  (\"ok\")\n  nil\n  break\n  continue\n  export value\n  import lib from \"./lib.molt\"\n  record { answer: 42 }\n}")
 
 	if len(program.Expressions) != 1 {
 		t.Fatalf("program expression count = %d, want 1", len(program.Expressions))
@@ -48,6 +48,9 @@ func TestParsePrimaryFormsAndSequences(t *testing.T) {
 	}
 
 	importExpr := expectExpr[*ast.ImportExpr](t, block.Expressions[6])
+	if importExpr.Name.Name != "lib" {
+		t.Fatalf("import name = %q, want %q", importExpr.Name.Name, "lib")
+	}
 	if importExpr.Path.Value != "./lib.molt" {
 		t.Fatalf("import path = %q, want %q", importExpr.Path.Value, "./lib.molt")
 	}
@@ -384,7 +387,7 @@ func TestParseDestructuringBindings(t *testing.T) {
 }
 
 func TestParseTryCatch(t *testing.T) {
-	program := mustParse(t, "try_catch.molt", "try import \"./lib.molt\" catch err -> err.message")
+	program := mustParse(t, "try_catch.molt", "try import lib from \"./lib.molt\" catch err -> err.message")
 	if len(program.Expressions) != 1 {
 		t.Fatalf("program expression count = %d, want 1", len(program.Expressions))
 	}
@@ -631,7 +634,8 @@ func TestParseRejectsMalformedPrograms(t *testing.T) {
 		{name: "match missing arrow", input: "match x { 1 2 }", message: "expected '->' in match case"},
 		{name: "same-line block sequence", input: "{ a b }", message: "expected line break or '}' after expression"},
 		{name: "export missing name", input: "export 1", message: "expected identifier after 'export'"},
-		{name: "import missing path", input: "import x", message: "expected string literal after 'import'"},
+		{name: "import missing from", input: "import x", message: "expected 'from' after import name"},
+		{name: "import missing path", input: "import x from", message: "expected string literal after 'from'"},
 		{name: "record missing brace", input: "record answer: 1", message: "expected '{' after 'record'"},
 		{name: "record missing field name", input: "record { 1: 2 }", message: "expected record field name"},
 		{name: "record missing colon", input: "record { answer 42 }", message: "expected ':' after record field name"},

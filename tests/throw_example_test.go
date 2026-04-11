@@ -16,8 +16,8 @@ func TestThrowExampleProducesExpectedRuntimeDiagnostic(t *testing.T) {
 		t.Fatalf("message = %q, want %q", diag.Message, "config file not found")
 	}
 
-	if diag.Span.Start.Line != 2 || diag.Span.Start.Column != 3 {
-		t.Fatalf("span start = %d:%d, want 2:3", diag.Span.Start.Line, diag.Span.Start.Column)
+	if diag.Span.Start.Line != 4 || diag.Span.Start.Column != 3 {
+		t.Fatalf("span start = %d:%d, want 4:3", diag.Span.Start.Line, diag.Span.Start.Column)
 	}
 
 	if len(diag.Notes) != 1 {

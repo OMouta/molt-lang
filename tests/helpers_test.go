@@ -5,12 +5,27 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"molt/internal/evaluator"
 	"molt/internal/parser"
 	"molt/internal/runtime"
 )
+
+func stdImports(paths ...string) string {
+	var builder strings.Builder
+	for _, path := range paths {
+		name := path[strings.LastIndex(path, ":")+1:]
+		builder.WriteString("import ")
+		builder.WriteString(name)
+		builder.WriteString(` from "`)
+		builder.WriteString(path)
+		builder.WriteString("\"\n")
+	}
+
+	return builder.String()
+}
 
 func repoRoot(t *testing.T) string {
 	t.Helper()

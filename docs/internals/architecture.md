@@ -58,8 +58,9 @@ Evaluator responsibilities:
 - execute AST nodes
 - create closures and quoted code values
 - resolve and execute imported module files
+- resolve `std:` imports into native standard-library bindings
 - evaluate first-match `match` expressions with branch-local capture scope
-- execute builtins
+- execute imported standard-library functions
 - preserve captured environments for functions and quotes
 
 The evaluator is also responsible for wiring builtin output so CLI execution and tests can both observe `print(...)`.
@@ -67,7 +68,8 @@ The evaluator is also responsible for wiring builtin output so CLI execution and
 Current import behavior is intentionally minimal:
 
 - imports resolve relative to the importing source file
-- each imported file evaluates in an isolated module scope rooted in builtins
+- `std:` imports resolve through the built-in module table instead of the filesystem
+- each imported file evaluates in an isolated module scope with no implicit prelude
 - imported modules expose only explicitly exported top-level bindings
 - non-exported module bindings remain private inside the module environment
 - imported modules are cached per evaluation run after their first successful evaluation

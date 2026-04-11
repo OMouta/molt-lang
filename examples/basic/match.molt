@@ -1,3 +1,5 @@
+import io from "std:io"
+
 describe = fn(value) = match value {
   1 -> "one"
   2 -> "two"
@@ -9,6 +11,6 @@ fallback = match false {
   _ -> "no"
 }
 
-print(describe(2))
-print(describe("molt"))
-print(fallback)
+io.print(describe(2))
+io.print(describe("molt"))
+io.print(fallback)

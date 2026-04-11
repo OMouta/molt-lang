@@ -56,7 +56,7 @@
   letter-spacing: -0.02em;
 }
 
-/* ─── Builtins table — accent headers ───────────────────────────────────────── */
+/* ─── Reference table — accent headers ──────────────────────────────────────── */
 
 .dark .vp-doc th {
   color: var(--vp-c-brand-1);

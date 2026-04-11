@@ -31,8 +31,8 @@ func TestSpecExamples(t *testing.T) {
 	})
 
 	t.Run("quoted argument sugar", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_quote_sugar.molt", ""+
-			"fn warp(code) = eval(code)\n"+
+		value, _ := mustExecuteProgram(t, "spec_quote_sugar.molt", stdImports("std:meta")+
+			"fn warp(code) = meta.eval(code)\n"+
 			"warp @{ 1 + 2 }",
 		)
 		expectShownValue(t, value, "3")
@@ -52,9 +52,9 @@ func TestSpecExamples(t *testing.T) {
 	})
 
 	t.Run("record literal", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_record_literal.molt", ""+
+		value, _ := mustExecuteProgram(t, "spec_record_literal.molt", stdImports("std:meta")+
 			"item = record { name: \"molt\", nested: record { ok: true } }\n"+
-			"[show(item), type(item)]",
+			"[meta.show(item), meta.type(item)]",
 		)
 		expectShownValue(t, value, "[\n  \"record { name: \\\"molt\\\", nested: record { ok: true } }\",\n  \"record\"\n]")
 	})
@@ -68,34 +68,34 @@ func TestSpecExamples(t *testing.T) {
 	})
 
 	t.Run("record field assignment", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_record_field_assignment.molt", ""+
+		value, _ := mustExecuteProgram(t, "spec_record_field_assignment.molt", stdImports("std:collections")+
 			"item = record { name: \"molt\", nested: record { ok: true } }\n"+
 			"item.nested.ok = false\n"+
 			"item.count = 2\n"+
-			"[item.nested.ok, item.count, keys(item)]",
+			"[item.nested.ok, item.count, collections.keys(item)]",
 		)
 		expectShownValue(t, value, `[false, 2, ["name", "nested", "count"]]`)
 	})
 
 	t.Run("record helpers", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_record_helpers.molt", ""+
+		value, _ := mustExecuteProgram(t, "spec_record_helpers.molt", stdImports("std:collections")+
 			"item = record { name: \"molt\", nested: record { ok: true } }\n"+
-			"[len(item), contains(item, \"name\"), keys(item), values(item)]",
+			"[collections.len(item), collections.contains(item, \"name\"), collections.keys(item), collections.values(item)]",
 		)
 		expectShownValue(t, value, `[2, true, ["name", "nested"], ["molt", record { ok: true }]]`)
 	})
 
 	t.Run("error values", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_error_values.molt", ""+
-			"err = error(\"missing file\", record { path: \"note.txt\" })\n"+
-			"[type(err), err.message, err.data.path]",
+		value, _ := mustExecuteProgram(t, "spec_error_values.molt", stdImports("std:errors", "std:meta")+
+			"err = errors.error(\"missing file\", record { path: \"note.txt\" })\n"+
+			"[meta.type(err), err.message, err.data.path]",
 		)
 		expectShownValue(t, value, `["error", "missing file", "note.txt"]`)
 	})
 
 	t.Run("try catch", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_try_catch.molt", ""+
-			"try throw(error(\"boom\", record { code: 7 })) catch err -> [err.message, err.data.code]",
+		value, _ := mustExecuteProgram(t, "spec_try_catch.molt", stdImports("std:errors")+
+			"try errors.throw(errors.error(\"boom\", record { code: 7 })) catch err -> [err.message, err.data.code]",
 		)
 		expectShownValue(t, value, `["boom", 7]`)
 	})
@@ -139,23 +139,23 @@ func TestSpecExamples(t *testing.T) {
 	})
 
 	t.Run("for loop", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_for_loop.molt", ""+
+		value, _ := mustExecuteProgram(t, "spec_for_loop.molt", stdImports("std:collections")+
 			"total = 0\n"+
 			"for item in [1, 2, 3] -> total = total + item\n"+
 			"chars = []\n"+
-			"for ch in \"ok\" -> push(chars, ch)\n"+
+			"for ch in \"ok\" -> collections.push(chars, ch)\n"+
 			"[total, chars]",
 		)
 		expectShownValue(t, value, `[6, ["o", "k"]]`)
 	})
 
 	t.Run("loop control", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_loop_control.molt", ""+
+		value, _ := mustExecuteProgram(t, "spec_loop_control.molt", stdImports("std:collections")+
 			"xs = []\n"+
 			"for item in [1, 2, 3, 4] -> {\n"+
 			"  if item == 2 -> continue else -> nil\n"+
 			"  if item == 4 -> break else -> nil\n"+
-			"  push(xs, item)\n"+
+			"  collections.push(xs, item)\n"+
 			"}\n"+
 			"xs",
 		)
@@ -168,114 +168,114 @@ func TestSpecExamples(t *testing.T) {
 	})
 
 	t.Run("conditional without else", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_conditional_without_else.molt", ""+
+		value, _ := mustExecuteProgram(t, "spec_conditional_without_else.molt", stdImports("std:collections")+
 			"seen = []\n"+
-			"if true -> push(seen, 1)\n"+
-			"if false -> push(seen, 2)\n"+
+			"if true -> collections.push(seen, 1)\n"+
+			"if false -> collections.push(seen, 2)\n"+
 			"seen",
 		)
 		expectShownValue(t, value, `[1]`)
 	})
 
 	t.Run("quote example", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_quote_example.molt", ""+
+		value, _ := mustExecuteProgram(t, "spec_quote_example.molt", stdImports("std:meta")+
 			"x = 10\n"+
 			"code = @{ x + 1 }\n"+
-			"eval(code)",
+			"meta.eval(code)",
 		)
 		expectShownValue(t, value, "11")
 	})
 
 	t.Run("quote reevaluation", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_quote_reeval.molt", ""+
+		value, _ := mustExecuteProgram(t, "spec_quote_reeval.molt", stdImports("std:meta")+
 			"x = 0\n"+
 			"code = @{ x = x + 1 }\n"+
-			"eval(code)\n"+
-			"eval(code)\n"+
+			"meta.eval(code)\n"+
+			"meta.eval(code)\n"+
 			"x",
 		)
 		expectShownValue(t, value, "2")
 	})
 
 	t.Run("quote unquote", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_quote_unquote.molt", ""+
+		value, _ := mustExecuteProgram(t, "spec_quote_unquote.molt", stdImports("std:meta")+
 			"part = @{ 1 + 2 }\n"+
 			"code = @{ ~(part) * 3 }\n"+
-			"eval(code)",
+			"meta.eval(code)",
 		)
 		expectShownValue(t, value, "9")
 	})
 
 	t.Run("quote splice", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_quote_splice.molt", ""+
+		value, _ := mustExecuteProgram(t, "spec_quote_splice.molt", stdImports("std:meta")+
 			"items = @{ [1, 2] }\n"+
 			"steps = @{ total = 1\ntotal = total + 2 }\n"+
 			"code = @{ ~[steps]\n[0, ~[items], total] }\n"+
-			"eval(code)",
+			"meta.eval(code)",
 		)
 		expectShownValue(t, value, `[0, 1, 2, 3]`)
 	})
 
 	t.Run("mutation as value", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_mutation_value.molt", ""+
+		value, _ := mustExecuteProgram(t, "spec_mutation_value.molt", stdImports("std:meta")+
 			"m = ~{ + -> * }\n"+
-			"type(m)",
+			"meta.type(m)",
 		)
 		expectStringValue(t, value, "mutation")
 	})
 
 	t.Run("mutation application", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_mutation_apply.molt", ""+
+		value, _ := mustExecuteProgram(t, "spec_mutation_apply.molt", stdImports("std:meta")+
 			"code = @{ 2 + 3 }\n"+
 			"code2 = code ~{ + -> * }\n"+
-			"eval(code2)",
+			"meta.eval(code2)",
 		)
 		expectShownValue(t, value, "6")
 	})
 
 	t.Run("mutation composition", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_mutation_compose.molt", ""+
+		value, _ := mustExecuteProgram(t, "spec_mutation_compose.molt", stdImports("std:meta")+
 			"m1 = ~{ + -> * }\n"+
 			"m2 = ~{ 1 -> 2 }\n"+
 			"m3 = m1 ~ m2\n"+
-			"eval(@{ 1 + 1 } ~ m3)",
+			"meta.eval(@{ 1 + 1 } ~ m3)",
 		)
 		expectShownValue(t, value, "4")
 	})
 
 	t.Run("mutation capture substitution", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_mutation_capture.molt", ""+
+		value, _ := mustExecuteProgram(t, "spec_mutation_capture.molt", stdImports("std:meta")+
 			"value = 7\n"+
 			"simplify = ~{\n"+
 			"  ($x + 0) -> $x\n"+
 			"  (0 + $x) -> $x\n"+
 			"}\n"+
-			"eval(@{ 0 + (value + 0) } ~ simplify)",
+			"meta.eval(@{ 0 + (value + 0) } ~ simplify)",
 		)
 		expectShownValue(t, value, "7")
 	})
 
 	t.Run("mutation wildcard and rest", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_mutation_rest.molt", ""+
+		value, _ := mustExecuteProgram(t, "spec_mutation_rest.molt", stdImports("std:meta")+
 			"simplify = ~{\n"+
 			"  [1, ...$tail, 4] -> [0, ...$tail]\n"+
 			"}\n"+
-			"eval(@{ [1, 2, 3, 4] } ~ simplify)",
+			"meta.eval(@{ [1, 2, 3, 4] } ~ simplify)",
 		)
 		expectShownValue(t, value, `[0, 2, 3]`)
 	})
 
 	t.Run("metaprogramming hygiene", func(t *testing.T) {
-		_, output := mustExecuteProgram(t, "spec_hygiene.molt", ""+
+		_, output := mustExecuteProgram(t, "spec_hygiene.molt", stdImports("std:meta", "std:io")+
 			"x = 2\n"+
 			"outer = 10\n"+
 			"fragment = @{ x + outer }\n"+
 			"maker = @{ fn(x) = ~(fragment) }\n"+
-			"f = eval(maker)\n"+
-			"print(f(5))\n"+
+			"f = meta.eval(maker)\n"+
+			"io.print(f(5))\n"+
 			"wrap = ~{ $body -> fn(x) = $body }\n"+
-			"g = eval(@{ x + outer } ~ wrap)\n"+
-			"print(g(7))",
+			"g = meta.eval(@{ x + outer } ~ wrap)\n"+
+			"io.print(g(7))",
 		)
 		if output != "15\n17\n" {
 			t.Fatalf("output = %q, want %q", output, "15\n17\n")
@@ -292,9 +292,9 @@ func TestSpecExamples(t *testing.T) {
 	})
 
 	t.Run("show example", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_show_example.molt", ""+
+		value, _ := mustExecuteProgram(t, "spec_show_example.molt", stdImports("std:meta")+
 			"code = @{ 2 + 3 }\n"+
-			"show(code)",
+			"meta.show(code)",
 		)
 		expectStringValue(t, value, "@{ (2 + 3) }")
 	})
@@ -309,9 +309,9 @@ func TestSpecExamples(t *testing.T) {
 	})
 
 	t.Run("code mutation example", func(t *testing.T) {
-		_, output := mustExecuteProgram(t, "spec_code_mutation.molt", ""+
+		_, output := mustExecuteProgram(t, "spec_code_mutation.molt", stdImports("std:meta", "std:io")+
 			"code = @{ 2 + 3 }\n"+
-			"print(eval(code ~{ + -> * }))",
+			"io.print(meta.eval(code ~{ + -> * }))",
 		)
 		if output != "6\n" {
 			t.Fatalf("output = %q, want %q", output, "6\n")
@@ -319,18 +319,18 @@ func TestSpecExamples(t *testing.T) {
 	})
 
 	t.Run("dynamic mutation example", func(t *testing.T) {
-		value, _ := mustExecuteProgram(t, "spec_dynamic_mutation.molt", ""+
-			"fn warp(code) = eval(code ~{ + -> * })\n"+
+		value, _ := mustExecuteProgram(t, "spec_dynamic_mutation.molt", stdImports("std:meta")+
+			"fn warp(code) = meta.eval(code ~{ + -> * })\n"+
 			"warp @{ 2 + 3 }",
 		)
 		expectShownValue(t, value, "6")
 	})
 
 	t.Run("compare worlds example", func(t *testing.T) {
-		_, output := mustExecuteProgram(t, "spec_compare_worlds.molt", ""+
+		_, output := mustExecuteProgram(t, "spec_compare_worlds.molt", stdImports("std:meta", "std:io")+
 			"fn compare(code) = {\n"+
-			"  print(eval(code))\n"+
-			"  print(eval(code ~{ + -> * }))\n"+
+			"  io.print(meta.eval(code))\n"+
+			"  io.print(meta.eval(code ~{ + -> * }))\n"+
 			"}\n"+
 			"compare @{ 2 + 3 }",
 		)

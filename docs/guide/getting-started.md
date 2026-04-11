@@ -46,19 +46,19 @@ gofmt -w .
 The CLI executes one source file at a time:
 
 ```powershell
-go run ./cmd/molt ./examples/basic_mutation.molt
+go run ./cmd/molt ./examples/basic/basic_mutation.molt
 ```
 
-Additional command-line arguments are exposed inside the program through `args()`:
+Additional command-line arguments are exposed through `std:cli`:
 
 ```powershell
-go run ./cmd/molt ./examples/basic_mutation.molt alpha beta
+go run ./cmd/molt ./examples/basic/basic_mutation.molt alpha beta
 ```
 
 It can also read a program from standard input:
 
 ```powershell
-'print(1 + 2)' | go run ./cmd/molt -
+'import "std:io"`nprint(1 + 2)' | go run ./cmd/molt -
 ```
 
 If you run `molt` without a file, it starts a REPL:

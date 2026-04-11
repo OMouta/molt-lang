@@ -1,5 +1,7 @@
+import errors from "std:errors"
+
 fn load_config(path) = {
-  throw(error("config file not found", record { path: path }))
+  errors.throw(errors.error("config file not found", record { path: path }))
 }
 
 load_config("settings.json")

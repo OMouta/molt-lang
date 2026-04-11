@@ -9,10 +9,24 @@ import (
 	"testing"
 )
 
+func stdImports(paths ...string) string {
+	var builder strings.Builder
+	for _, path := range paths {
+		name := path[strings.LastIndex(path, ":")+1:]
+		builder.WriteString("import ")
+		builder.WriteString(name)
+		builder.WriteString(` from "`)
+		builder.WriteString(path)
+		builder.WriteString("\"\n")
+	}
+
+	return builder.String()
+}
+
 func TestRunExecutesSourceFileSuccessfully(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ok.molt")
-	writeTestFile(t, path, "print(1 + 2)")
+	writeTestFile(t, path, stdImports("std:io")+"io.print(1 + 2)")
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -88,9 +102,9 @@ func TestRunReportsRuntimeDiagnostics(t *testing.T) {
 func TestRunReportsThrownErrorDiagnosticsAtThrowSite(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "throw_error.molt")
-	writeTestFile(t, path, ""+
+	writeTestFile(t, path, stdImports("std:errors")+""+
 		"fn fail() = {\n"+
-		"  throw(error(\"boom\", record { code: 7 }))\n"+
+		"  errors.throw(errors.error(\"boom\", record { code: 7 }))\n"+
 		"}\n"+
 		"fail()\n",
 	)
@@ -108,11 +122,11 @@ func TestRunReportsThrownErrorDiagnosticsAtThrowSite(t *testing.T) {
 	}
 
 	output := stderr.String()
-	if !strings.Contains(output, path+":2:3: runtime error: boom") {
+	if !strings.Contains(output, path+":3:3: runtime error: boom") {
 		t.Fatalf("stderr = %q, want thrown diagnostic header", output)
 	}
 
-	if !strings.Contains(output, "2 |   throw(error(\"boom\", record { code: 7 }))") {
+	if !strings.Contains(output, "3 |   errors.throw(errors.error(\"boom\", record { code: 7 }))") {
 		t.Fatalf("stderr = %q, want throw-site snippet", output)
 	}
 
@@ -149,7 +163,7 @@ func TestRunExecutesProgramFromStdin(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	exit := run([]string{"-", "hello", "world"}, strings.NewReader("print([stdin(), args()])"), &stdout, &stderr)
+	exit := run([]string{"-", "hello", "world"}, strings.NewReader(stdImports("std:io", "std:cli")+"io.print([io.stdin(), cli.args()])"), &stdout, &stderr)
 
 	if exit != 0 {
 		t.Fatalf("exit code = %d, want 0", exit)
@@ -186,7 +200,7 @@ func TestRunReportsStdinReadFailures(t *testing.T) {
 func TestRunPassesCommandLineArgumentsToProgram(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "args.molt")
-	writeTestFile(t, path, "print(args())")
+	writeTestFile(t, path, stdImports("std:io", "std:cli")+"io.print(cli.args())")
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -210,7 +224,7 @@ func TestRunExecutesReadFileBuiltin(t *testing.T) {
 	dataPath := filepath.Join(dir, "data.txt")
 	programPath := filepath.Join(dir, "read_file.molt")
 	writeTestFile(t, dataPath, "hello from disk")
-	writeTestFile(t, programPath, "print(read_file(\""+filepath.ToSlash(dataPath)+"\"))")
+	writeTestFile(t, programPath, stdImports("std:io")+"io.print(io.read_file(\""+filepath.ToSlash(dataPath)+"\"))")
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -233,7 +247,7 @@ func TestRunExecutesWriteFileBuiltin(t *testing.T) {
 	dir := t.TempDir()
 	dataPath := filepath.Join(dir, "written.txt")
 	programPath := filepath.Join(dir, "write_file.molt")
-	writeTestFile(t, programPath, "write_file(\""+filepath.ToSlash(dataPath)+"\", \"hello from write_file\")")
+	writeTestFile(t, programPath, stdImports("std:io")+"io.write_file(\""+filepath.ToSlash(dataPath)+"\", \"hello from write_file\")")
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -264,7 +278,7 @@ func TestRunExecutesWriteFileBuiltin(t *testing.T) {
 func TestRunExecutesInputBuiltin(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "input.molt")
-	writeTestFile(t, path, "print([input(), input(), stdin()])")
+	writeTestFile(t, path, stdImports("std:io")+"io.print([io.input(), io.input(), io.stdin()])")
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -288,7 +302,7 @@ func TestRunExecutesRelativeImports(t *testing.T) {
 	libPath := filepath.Join(dir, "lib.molt")
 	mainPath := filepath.Join(dir, "main.molt")
 	writeTestFile(t, libPath, "value = 41\nfn bump(x) = x + 1\nexport value\nexport bump")
-	writeTestFile(t, mainPath, "import \"./lib.molt\"\nprint(bump(value))")
+	writeTestFile(t, mainPath, stdImports("std:io")+"import lib from \"./lib.molt\"\nio.print(lib.bump(lib.value))")
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -312,7 +326,7 @@ func TestRunKeepsPrivateImportedBindingsHidden(t *testing.T) {
 	libPath := filepath.Join(dir, "lib.molt")
 	mainPath := filepath.Join(dir, "main.molt")
 	writeTestFile(t, libPath, "hidden = 41\nfn value() = hidden\nexport value")
-	writeTestFile(t, mainPath, "import \"./lib.molt\"\nprint(hidden)")
+	writeTestFile(t, mainPath, stdImports("std:io")+"import lib from \"./lib.molt\"\nio.print(lib.hidden)")
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -326,7 +340,7 @@ func TestRunKeepsPrivateImportedBindingsHidden(t *testing.T) {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
 	}
 
-	if !strings.Contains(stderr.String(), `undefined identifier "hidden"`) {
+	if !strings.Contains(stderr.String(), `record has no field "hidden"`) {
 		t.Fatalf("stderr = %q, want hidden binding failure", stderr.String())
 	}
 }
@@ -336,9 +350,9 @@ func TestRunReportsImportCycleDiagnostics(t *testing.T) {
 	aPath := filepath.Join(dir, "a.molt")
 	bPath := filepath.Join(dir, "b.molt")
 	mainPath := filepath.Join(dir, "main.molt")
-	writeTestFile(t, aPath, `import "./b.molt"`)
-	writeTestFile(t, bPath, `import "./a.molt"`)
-	writeTestFile(t, mainPath, `import "./a.molt"`)
+	writeTestFile(t, aPath, `import b from "./b.molt"`)
+	writeTestFile(t, bPath, `import a from "./a.molt"`)
+	writeTestFile(t, mainPath, `import a from "./a.molt"`)
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -386,7 +400,7 @@ func TestRunREPLSupportsMultilineInputAndContinuesAfterErrors(t *testing.T) {
 		"{\n" +
 		"  1 + 2\n" +
 		"}\n" +
-		"len(1)\n" +
+		"[][0]\n" +
 		"a < b < c\n" +
 		"4 + 5\n"
 
@@ -401,7 +415,7 @@ func TestRunREPLSupportsMultilineInputAndContinuesAfterErrors(t *testing.T) {
 	}
 
 	errOut := stderr.String()
-	if !strings.Contains(errOut, `<repl>:1:1: runtime error: len expects list, string, record, or error, got "number"`) {
+	if !strings.Contains(errOut, `<repl>:1:1: runtime error: list index 0 out of bounds`) {
 		t.Fatalf("stderr = %q, want runtime diagnostic", errOut)
 	}
 
@@ -415,7 +429,10 @@ func TestRunREPLSupportsInputBuiltin(t *testing.T) {
 	var stderr bytes.Buffer
 
 	input := "" +
-		"print([input(), input(), stdin()])\n" +
+		"{\n" +
+		"import io from \"std:io\"\n" +
+		"io.print([io.input(), io.input(), io.stdin()])\n" +
+		"}\n" +
 		"first\n" +
 		"second\n" +
 		"tail"

@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"molt/internal/ast"
-	"molt/internal/builtins"
 	"molt/internal/diagnostic"
 	"molt/internal/runtime"
 	"molt/internal/source"
@@ -109,10 +108,7 @@ func (e *Evaluator) evalCodeValue(code *runtime.CodeValue) (runtime.Value, error
 		captured = runtime.NewEnvironment(nil)
 	}
 
-	builtins.Install(captured)
-
 	frame := runtime.NewEnvironment(captured)
-	builtins.Install(frame)
 
 	value, err := e.evalExpr(frame, code.Body)
 	if err != nil {

@@ -8,11 +8,11 @@ This directory contains the source for the molt documentation website, built wit
 
 | Output | Source |
 | --- | --- |
-| `reference/builtins.md` | `internal/builtins/docs.go` — `AllDocs []Doc` |
+| `reference/standard-library.md` | `internal/builtins/*.go` via `ModuleDocs()` |
 | `reference/examples.md` | Every `.molt` file under `examples/` |
 | `public/logo.png` | `assets/molt-logo.png` |
 
-**To add or update a builtin's documentation**, edit `internal/builtins/docs.go` and re-run docgen. Do not edit `reference/builtins.md` directly.
+**To add or update standard-library documentation**, edit the module definitions under `internal/builtins/` and re-run docgen. Do not edit `reference/standard-library.md` directly.
 
 **To add an example**, drop a `.molt` file into the appropriate subdirectory under `examples/` and re-run docgen. A leading `# comment` in the file becomes its description on the examples page.
 

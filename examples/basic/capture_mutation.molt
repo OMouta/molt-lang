@@ -1,3 +1,6 @@
+import io from "std:io"
+import meta from "std:meta"
+
 value = 7
 
 simplify = ~{
@@ -5,4 +8,4 @@ simplify = ~{
   (0 + $x) -> $x
 }
 
-print(eval(@{ 0 + (value + 0) } ~ simplify))
+io.print(meta.eval(@{ 0 + (value + 0) } ~ simplify))

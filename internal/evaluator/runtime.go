@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 
-	"molt/internal/builtins"
 	"molt/internal/runtime"
 )
 
@@ -14,7 +13,6 @@ func (e *Evaluator) prepareEnvironment(env *runtime.Environment) *runtime.Enviro
 		env = runtime.NewEnvironment(nil)
 	}
 
-	builtins.Install(env)
 	return env
 }
 
@@ -41,9 +39,7 @@ func (e *Evaluator) endRun() {
 }
 
 func (e *Evaluator) newModuleEnvironment() *runtime.Environment {
-	base := runtime.NewEnvironment(nil)
-	builtins.Install(base)
-	return runtime.NewEnvironment(base)
+	return runtime.NewEnvironment(nil)
 }
 
 func (e *Evaluator) outputWriter() io.Writer {

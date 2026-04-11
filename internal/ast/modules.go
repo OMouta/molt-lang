@@ -4,6 +4,7 @@ import "molt/internal/source"
 
 type ImportExpr struct {
 	SourceSpan source.Span
+	Name       *Identifier
 	Path       *StringLiteral
 }
 

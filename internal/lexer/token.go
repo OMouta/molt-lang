@@ -27,6 +27,7 @@ const (
 	Break    Kind = "break"
 	Continue Kind = "continue"
 	Export   Kind = "export"
+	From     Kind = "from"
 	Import   Kind = "import"
 	Record   Kind = "record"
 	And      Kind = "and"
@@ -95,6 +96,7 @@ var keywords = map[string]Kind{
 	"break":    Break,
 	"continue": Continue,
 	"export":   Export,
+	"from":     From,
 	"import":   Import,
 	"record":   Record,
 	"and":      And,

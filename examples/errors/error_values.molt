@@ -1,7 +1,12 @@
-err = error("missing file", record { path: "note.txt" })
+import collections from "std:collections"
+import errors from "std:errors"
+import io from "std:io"
+import meta from "std:meta"
 
-print(type(err))
-print(err.message)
-print(err.data.path)
-print(keys(err))
-print(show(err))
+err = errors.error("missing file", record { path: "note.txt" })
+
+io.print(meta.type(err))
+io.print(err.message)
+io.print(err.data.path)
+io.print(collections.keys(err))
+io.print(meta.show(err))

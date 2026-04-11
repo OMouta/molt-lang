@@ -1,3 +1,7 @@
+import collections from "std:collections"
+import io from "std:io"
+import strings from "std:strings"
+
 colors = record {
     reset: "\e[0m",
     red: "\e[31m",
@@ -9,10 +13,10 @@ colors = record {
 }
 
 fn pretty_print(text, color) = {
-    if contains(colors, color) ->
-        print(join([colors[color], text, colors.reset], ""))
+    if collections.contains(colors, color) ->
+        io.print(strings.join([colors[color], text, colors.reset], ""))
     else ->
-        print(text)
+        io.print(text)
 }
 
 pretty_print("hi in red", "red")

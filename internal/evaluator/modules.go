@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"molt/internal/ast"
+	"molt/internal/builtins"
 	"molt/internal/diagnostic"
 	"molt/internal/parser"
 	"molt/internal/runtime"
@@ -37,6 +38,10 @@ func (e *Evaluator) evalExport(env *runtime.Environment, expr *ast.ExportExpr) (
 }
 
 func (e *Evaluator) evalImport(env *runtime.Environment, expr *ast.ImportExpr) (runtime.Value, error) {
+	if expr.Name == nil {
+		return nil, fmt.Errorf("import expression missing name")
+	}
+
 	if expr.Path == nil {
 		return nil, fmt.Errorf("import expression missing path")
 	}
@@ -45,21 +50,47 @@ func (e *Evaluator) evalImport(env *runtime.Environment, expr *ast.ImportExpr) (
 		return nil, e.runtimeError(expr.Path, "import path cannot be empty")
 	}
 
-	resolvedPath, err := resolveImportPath(expr.Span().File.Path(), expr.Path.Value)
-	if err != nil {
-		return nil, e.runtimeError(expr.Path, fmt.Sprintf("failed to resolve import %q: %v", expr.Path.Value, err))
+	var bindings []runtime.Binding
+	var err error
+
+	if strings.HasPrefix(expr.Path.Value, "std:") {
+		bindings, err = e.loadStandardModule(expr, expr.Path.Value)
+	} else {
+		resolvedPath, resolveErr := resolveImportPath(expr.Span().File.Path(), expr.Path.Value)
+		if resolveErr != nil {
+			return nil, e.runtimeError(expr.Path, fmt.Sprintf("failed to resolve import %q: %v", expr.Path.Value, resolveErr))
+		}
+		bindings, err = e.loadModule(expr, resolvedPath)
 	}
 
-	bindings, err := e.loadModule(expr, resolvedPath)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, binding := range bindings {
-		env.Define(binding.Name, binding.Value)
+	env.Assign(expr.Name.Name, bindingsToRecord(bindings))
+	return runtime.Nil, nil
+}
+
+func bindingsToRecord(bindings []runtime.Binding) *runtime.RecordValue {
+	fields := make([]runtime.RecordField, len(bindings))
+	for i, b := range bindings {
+		fields[i] = runtime.RecordField{Name: b.Name, Value: b.Value}
+	}
+	return runtime.NewRecordValue(fields)
+}
+
+func (e *Evaluator) loadStandardModule(expr *ast.ImportExpr, path string) ([]runtime.Binding, error) {
+	if bindings, ok := e.moduleCache[path]; ok {
+		return cloneBindings(bindings), nil
 	}
 
-	return runtime.Nil, nil
+	bindings, ok := builtins.ModuleBindings(path)
+	if !ok {
+		return nil, e.runtimeError(expr.Path, fmt.Sprintf("unknown standard module %q", path))
+	}
+
+	e.moduleCache[path] = cloneBindings(bindings)
+	return bindings, nil
 }
 
 func (e *Evaluator) loadModule(expr *ast.ImportExpr, resolvedPath string) ([]runtime.Binding, error) {
