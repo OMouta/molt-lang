@@ -103,17 +103,74 @@ func (p *Parser) parseExport(start lexer.Token) (ast.Expr, error) {
 }
 
 func (p *Parser) parseImport(start lexer.Token) (ast.Expr, error) {
-	nameToken, err := p.consume(lexer.Identifier, "expected identifier after 'import'")
-	if err != nil {
-		return nil, err
+	// Module import: import "./path" or import "./path" as alias
+	if p.check(lexer.String) {
+		pathToken, err := p.consume(lexer.String, "expected string literal after 'import'")
+		if err != nil {
+			return nil, err
+		}
+
+		path := &ast.StringLiteral{
+			SourceSpan: pathToken.Span,
+			Value:      pathToken.Value,
+		}
+
+		var alias *ast.Identifier
+		end := pathToken.Span
+		if p.match(lexer.As) {
+			aliasToken, err := p.consume(lexer.Identifier, "expected identifier after 'as'")
+			if err != nil {
+				return nil, err
+			}
+			alias = &ast.Identifier{
+				SourceSpan: aliasToken.Span,
+				Name:       aliasToken.Value,
+			}
+			end = aliasToken.Span
+		}
+
+		return &ast.ImportExpr{
+			SourceSpan: p.mergeSpans(start.Span, end),
+			Kind:       ast.ImportModule,
+			Name:       alias,
+			Path:       path,
+		}, nil
 	}
 
-	name := &ast.Identifier{
-		SourceSpan: nameToken.Span,
-		Name:       nameToken.Value,
+	// Named import: import {a, b} from "./path" or import name from "./path"
+	var names []*ast.Identifier
+
+	if p.match(lexer.LeftBrace) {
+		// Brace form: import {a, b, c} from "./path"
+		for {
+			nameToken, err := p.consume(lexer.Identifier, "expected identifier in import list")
+			if err != nil {
+				return nil, err
+			}
+			names = append(names, &ast.Identifier{
+				SourceSpan: nameToken.Span,
+				Name:       nameToken.Value,
+			})
+			if !p.match(lexer.Comma) {
+				break
+			}
+		}
+		if _, err := p.consume(lexer.RightBrace, "expected '}' after import list"); err != nil {
+			return nil, err
+		}
+	} else {
+		// Shorthand: import name from "./path"
+		nameToken, err := p.consume(lexer.Identifier, "expected identifier, '{', or string literal after 'import'")
+		if err != nil {
+			return nil, err
+		}
+		names = []*ast.Identifier{{
+			SourceSpan: nameToken.Span,
+			Name:       nameToken.Value,
+		}}
 	}
 
-	if _, err := p.consume(lexer.From, "expected 'from' after import name"); err != nil {
+	if _, err := p.consume(lexer.From, "expected 'from' after import names"); err != nil {
 		return nil, err
 	}
 
@@ -129,7 +186,8 @@ func (p *Parser) parseImport(start lexer.Token) (ast.Expr, error) {
 
 	return &ast.ImportExpr{
 		SourceSpan: p.mergeSpans(start.Span, pathToken.Span),
-		Name:       name,
+		Kind:       ast.ImportNamed,
+		Names:      names,
 		Path:       path,
 	}, nil
 }

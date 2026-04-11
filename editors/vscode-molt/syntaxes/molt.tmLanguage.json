@@ -66,7 +66,52 @@
     "import-decl": {
       "patterns": [
         {
-          "name": "meta.import.molt",
+          "comment": "import \"path\" as alias",
+          "name": "meta.import.module-alias.molt",
+          "match": "\\b(import)\\s+(\"[^\"]*\")\\s+(as)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.control.module.molt" },
+            "2": { "name": "string.quoted.double.molt" },
+            "3": { "name": "keyword.control.module.molt" },
+            "4": { "name": "entity.name.namespace.molt" }
+          }
+        },
+        {
+          "comment": "import \"path\"",
+          "name": "meta.import.module.molt",
+          "match": "\\b(import)\\s+(\"[^\"]*\")",
+          "captures": {
+            "1": { "name": "keyword.control.module.molt" },
+            "2": { "name": "string.quoted.double.molt" }
+          }
+        },
+        {
+          "comment": "import {a, b} from \"path\"",
+          "name": "meta.import.named-list.molt",
+          "begin": "\\b(import)\\s*(\\{)",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.module.molt" },
+            "2": { "name": "punctuation.section.block.begin.molt" }
+          },
+          "end": "(\\})\\s*(from)\\b",
+          "endCaptures": {
+            "1": { "name": "punctuation.section.block.end.molt" },
+            "2": { "name": "keyword.control.module.molt" }
+          },
+          "patterns": [
+            {
+              "name": "entity.name.namespace.molt",
+              "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+            },
+            {
+              "name": "punctuation.separator.comma.molt",
+              "match": ","
+            }
+          ]
+        },
+        {
+          "comment": "import name from \"path\"",
+          "name": "meta.import.named.molt",
           "match": "\\b(import)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(from)\\b",
           "captures": {
             "1": { "name": "keyword.control.module.molt" },
@@ -300,7 +345,7 @@
       "patterns": [
         {
           "name": "keyword.control.module.molt",
-          "match": "\\b(?:import|export|from)\\b"
+          "match": "\\b(?:import|export|from|as)\\b"
         },
         {
           "name": "keyword.control.conditional.molt",

@@ -1,12 +1,12 @@
-import collections from "std:collections"
-import io from "std:io"
-import meta from "std:meta"
+import "std:collections" as c
+import "std:io"
+import "std:meta"
 
 fn run(code, mutation) = meta.eval(code ~ mutation)
 
 xs = []
-collections.push(xs, run(@{ 2 + 3 }, ~{ + -> * }))
-collections.push(xs, run(@{ collections.len("molt") + 1 }, ~{ 1 -> 3 }))
-collections.push(xs, meta.type(@{ 0 }))
+c.push(xs, run(@{ 2 + 3 }, ~{ + -> * }))
+c.push(xs, run(@{ c.len("molt") + 1 }, ~{ 1 -> 3 }))
+c.push(xs, meta.type(@{ 0 }))
 
 io.print(xs)

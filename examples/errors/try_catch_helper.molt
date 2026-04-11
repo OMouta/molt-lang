@@ -1,3 +1,3 @@
-import errors from "std:errors"
+import "std:errors"
 
 errors.throw(errors.error("helper failed", record { source: "import" }))

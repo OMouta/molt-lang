@@ -1,4 +1,4 @@
-import io from "std:io"
+import "std:io"
 
 fn add(a, b) = a + b
 fn mul = add ~{ + -> * }

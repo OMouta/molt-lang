@@ -1,5 +1,5 @@
-import io from "std:io"
-import meta from "std:meta"
+import "std:io"
+import "std:meta"
 
 fn compare(code) = {
   io.print(meta.eval(code))

@@ -1,12 +1,12 @@
-import collections from "std:collections"
-import errors from "std:errors"
-import io from "std:io"
-import meta from "std:meta"
+import "std:collections" as c
+import "std:errors"
+import "std:io"
+import "std:meta"
 
 err = errors.error("missing file", record { path: "note.txt" })
 
 io.print(meta.type(err))
 io.print(err.message)
 io.print(err.data.path)
-io.print(collections.keys(err))
+io.print(c.keys(err))
 io.print(meta.show(err))

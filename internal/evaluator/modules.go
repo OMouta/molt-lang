@@ -38,10 +38,6 @@ func (e *Evaluator) evalExport(env *runtime.Environment, expr *ast.ExportExpr) (
 }
 
 func (e *Evaluator) evalImport(env *runtime.Environment, expr *ast.ImportExpr) (runtime.Value, error) {
-	if expr.Name == nil {
-		return nil, fmt.Errorf("import expression missing name")
-	}
-
 	if expr.Path == nil {
 		return nil, fmt.Errorf("import expression missing path")
 	}
@@ -67,8 +63,49 @@ func (e *Evaluator) evalImport(env *runtime.Environment, expr *ast.ImportExpr) (
 		return nil, err
 	}
 
-	env.Assign(expr.Name.Name, bindingsToRecord(bindings))
+	switch expr.Kind {
+	case ast.ImportModule:
+		bindingName := moduleAutoName(expr)
+		env.Assign(bindingName, bindingsToRecord(bindings))
+	case ast.ImportNamed:
+		if len(expr.Names) == 0 {
+			return nil, fmt.Errorf("named import expression has no names")
+		}
+		for _, name := range expr.Names {
+			found := false
+			for _, b := range bindings {
+				if b.Name == name.Name {
+					env.Assign(name.Name, b.Value)
+					found = true
+					break
+				}
+			}
+			if !found {
+				return nil, e.runtimeError(name, fmt.Sprintf("module does not export %q", name.Name))
+			}
+		}
+	}
+
 	return runtime.Nil, nil
+}
+
+// moduleAutoName derives the binding name for a module import.
+// Uses the explicit alias if present, otherwise derives it from the path:
+// - "std:io" → "io"
+// - "./math.molt" → "math"
+func moduleAutoName(expr *ast.ImportExpr) string {
+	if expr.Name != nil {
+		return expr.Name.Name
+	}
+	path := expr.Path.Value
+	if i := strings.LastIndex(path, ":"); i >= 0 {
+		path = path[i+1:]
+	}
+	base := filepath.Base(path)
+	if i := strings.LastIndex(base, "."); i >= 0 {
+		base = base[:i]
+	}
+	return base
 }
 
 func bindingsToRecord(bindings []runtime.Binding) *runtime.RecordValue {

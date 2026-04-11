@@ -1,11 +1,11 @@
-import collections from "std:collections"
-import errors from "std:errors"
-import io from "std:io"
+import "std:collections" as c
+import "std:errors"
+import "std:io"
 
 from_import = try import helper from "./try_catch_helper.molt" catch err -> [err.message, err.data.source]
 io.print(from_import)
 
-from_runtime = try collections.len(1) catch err -> err.message
+from_runtime = try c.len(1) catch err -> err.message
 io.print(from_runtime)
 
 from_throw = try errors.throw(errors.error("bad input", record { field: "name" })) catch err -> err.data.field

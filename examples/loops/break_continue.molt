@@ -1,11 +1,11 @@
-import collections from "std:collections"
-import io from "std:io"
+import "std:collections" as c
+import "std:io"
 
 xs = []
 for item in [1, 2, 3, 4] -> {
   if item == 2 -> continue
   if item == 4 -> break
-  collections.push(xs, item)
+  c.push(xs, item)
 }
 
 io.print(xs)

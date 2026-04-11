@@ -26,6 +26,7 @@ const (
 	In       Kind = "in"
 	Break    Kind = "break"
 	Continue Kind = "continue"
+	As       Kind = "as"
 	Export   Kind = "export"
 	From     Kind = "from"
 	Import   Kind = "import"
@@ -95,6 +96,7 @@ var keywords = map[string]Kind{
 	"in":       In,
 	"break":    Break,
 	"continue": Continue,
+	"as":       As,
 	"export":   Export,
 	"from":     From,
 	"import":   Import,

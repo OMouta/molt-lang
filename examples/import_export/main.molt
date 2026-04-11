@@ -1,5 +1,5 @@
-import io from "std:io"
-import math from "./math.molt"
+import "std:io"
+import {base, add_secret} from "./math.molt"
 
-io.print(math.base)
-io.print(math.add_secret(1))
+io.print(base)
+io.print(add_secret(1))

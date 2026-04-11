@@ -21,7 +21,7 @@ func TestImportsExecuteRelativeModulesEndToEnd(t *testing.T) {
 		t.Fatalf("WriteFile lib failed: %v", err)
 	}
 
-	if err := os.WriteFile(mainPath, []byte("import math from \"./math.molt\"\nmath.add2(math.base)"), 0o644); err != nil {
+	if err := os.WriteFile(mainPath, []byte("import \"./math.molt\"\nmath.add2(math.base)"), 0o644); err != nil {
 		t.Fatalf("WriteFile main failed: %v", err)
 	}
 
@@ -63,9 +63,9 @@ func TestImportsCacheModuleExecutionEndToEnd(t *testing.T) {
 	}
 
 	if err := os.WriteFile(mainPath, []byte(""+
-		"import m1 from \"./stateful.molt\"\n"+
+		"import \"./stateful.molt\" as m1\n"+
 		"a = m1.tick()\n"+
-		"import m2 from \"./stateful.molt\"\n"+
+		"import \"./stateful.molt\" as m2\n"+
 		"b = m2.tick()\n"+
 		"[a, b]"), 0o644); err != nil {
 		t.Fatalf("WriteFile main failed: %v", err)
@@ -102,7 +102,7 @@ func TestImportsOnlyExposeExplicitExportsEndToEnd(t *testing.T) {
 	}
 
 	if err := os.WriteFile(mainPath, []byte(""+
-		"import lib from \"./lib.molt\"\n"+
+		"import \"./lib.molt\"\n"+
 		"lib.add2(2)"), 0o644); err != nil {
 		t.Fatalf("WriteFile main failed: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestImportsOnlyExposeExplicitExportsEndToEnd(t *testing.T) {
 	expectShownValue(t, value, "42")
 
 	if err := os.WriteFile(mainPath, []byte(""+
-		"import lib from \"./lib.molt\"\n"+
+		"import \"./lib.molt\"\n"+
 		"lib.helper"), 0o644); err != nil {
 		t.Fatalf("WriteFile main failed: %v", err)
 	}
@@ -157,15 +157,15 @@ func TestImportsReportCycleDiagnosticsEndToEnd(t *testing.T) {
 	bPath := filepath.Join(dir, "b.molt")
 	mainPath := filepath.Join(dir, "main.molt")
 
-	if err := os.WriteFile(aPath, []byte(`import b from "./b.molt"`), 0o644); err != nil {
+	if err := os.WriteFile(aPath, []byte(`import "./b.molt"`), 0o644); err != nil {
 		t.Fatalf("WriteFile a failed: %v", err)
 	}
 
-	if err := os.WriteFile(bPath, []byte(`import a from "./a.molt"`), 0o644); err != nil {
+	if err := os.WriteFile(bPath, []byte(`import "./a.molt"`), 0o644); err != nil {
 		t.Fatalf("WriteFile b failed: %v", err)
 	}
 
-	if err := os.WriteFile(mainPath, []byte(`import a from "./a.molt"`), 0o644); err != nil {
+	if err := os.WriteFile(mainPath, []byte(`import "./a.molt"`), 0o644); err != nil {
 		t.Fatalf("WriteFile main failed: %v", err)
 	}
 

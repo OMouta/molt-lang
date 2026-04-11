@@ -420,10 +420,21 @@ func (e *Evaluator) interpolateQuoteExpr(env *runtime.Environment, expr ast.Expr
 			Name:       runtime.CloneExpr(node.Name).(*ast.Identifier),
 		}, nil
 	case *ast.ImportExpr:
-		return &ast.ImportExpr{
+		cloned := &ast.ImportExpr{
 			SourceSpan: node.SourceSpan,
+			Kind:       node.Kind,
 			Path:       runtime.CloneExpr(node.Path).(*ast.StringLiteral),
-		}, nil
+		}
+		if node.Name != nil {
+			cloned.Name = runtime.CloneExpr(node.Name).(*ast.Identifier)
+		}
+		if len(node.Names) > 0 {
+			cloned.Names = make([]*ast.Identifier, len(node.Names))
+			for i, n := range node.Names {
+				cloned.Names[i] = runtime.CloneExpr(n).(*ast.Identifier)
+			}
+		}
+		return cloned, nil
 	case *ast.GroupExpr:
 		inner, err := e.interpolateQuoteExpr(env, node.Inner)
 		if err != nil {

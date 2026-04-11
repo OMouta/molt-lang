@@ -12,10 +12,7 @@ import (
 func stdImports(paths ...string) string {
 	var builder strings.Builder
 	for _, path := range paths {
-		name := path[strings.LastIndex(path, ":")+1:]
-		builder.WriteString("import ")
-		builder.WriteString(name)
-		builder.WriteString(` from "`)
+		builder.WriteString(`import "`)
 		builder.WriteString(path)
 		builder.WriteString("\"\n")
 	}
@@ -302,7 +299,7 @@ func TestRunExecutesRelativeImports(t *testing.T) {
 	libPath := filepath.Join(dir, "lib.molt")
 	mainPath := filepath.Join(dir, "main.molt")
 	writeTestFile(t, libPath, "value = 41\nfn bump(x) = x + 1\nexport value\nexport bump")
-	writeTestFile(t, mainPath, stdImports("std:io")+"import lib from \"./lib.molt\"\nio.print(lib.bump(lib.value))")
+	writeTestFile(t, mainPath, stdImports("std:io")+"import \"./lib.molt\"\nio.print(lib.bump(lib.value))")
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -326,7 +323,7 @@ func TestRunKeepsPrivateImportedBindingsHidden(t *testing.T) {
 	libPath := filepath.Join(dir, "lib.molt")
 	mainPath := filepath.Join(dir, "main.molt")
 	writeTestFile(t, libPath, "hidden = 41\nfn value() = hidden\nexport value")
-	writeTestFile(t, mainPath, stdImports("std:io")+"import lib from \"./lib.molt\"\nio.print(lib.hidden)")
+	writeTestFile(t, mainPath, stdImports("std:io")+"import \"./lib.molt\"\nio.print(lib.hidden)")
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -350,9 +347,9 @@ func TestRunReportsImportCycleDiagnostics(t *testing.T) {
 	aPath := filepath.Join(dir, "a.molt")
 	bPath := filepath.Join(dir, "b.molt")
 	mainPath := filepath.Join(dir, "main.molt")
-	writeTestFile(t, aPath, `import b from "./b.molt"`)
-	writeTestFile(t, bPath, `import a from "./a.molt"`)
-	writeTestFile(t, mainPath, `import a from "./a.molt"`)
+	writeTestFile(t, aPath, `import "./b.molt"`)
+	writeTestFile(t, bPath, `import "./a.molt"`)
+	writeTestFile(t, mainPath, `import "./a.molt"`)
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -430,7 +427,7 @@ func TestRunREPLSupportsInputBuiltin(t *testing.T) {
 
 	input := "" +
 		"{\n" +
-		"import io from \"std:io\"\n" +
+		"import \"std:io\"\n" +
 		"io.print([io.input(), io.input(), io.stdin()])\n" +
 		"}\n" +
 		"first\n" +

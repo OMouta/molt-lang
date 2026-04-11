@@ -1,4 +1,4 @@
-import io from "std:io"
+import "std:io"
 
 describe = fn(value) = match value {
   1 -> "one"

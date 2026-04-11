@@ -1,4 +1,4 @@
-import errors from "std:errors"
+import "std:errors"
 
 fn load_config(path) = {
   errors.throw(errors.error("config file not found", record { path: path }))

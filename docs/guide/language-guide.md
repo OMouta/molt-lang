@@ -54,8 +54,11 @@ fn(x) = x + 1
 Imports:
 
 ```txt
-import "./math.molt"
 import "std:io"
+import "./math.molt"
+import "./math.molt" as m
+import base from "./math.molt"
+import {base, add_secret} from "./math.molt"
 export add
 ```
 
@@ -250,39 +253,66 @@ As a safety rail, interpolation stays in ordinary expression positions. You cann
 
 ## Imports
 
-Imports load either another local `.molt` file or a standard module:
+There are two import forms.
+
+### Module import
 
 ```txt
 import "./math.molt"
 import "std:io"
-import "std:meta"
+import "./math.molt" as m
+import "std:io" as io
 ```
 
-Current import behavior:
+Loads the module and binds all its exports as a namespace record. The binding name is either the explicit `as` alias or is derived automatically from the path stem (`math` from `"./math.molt"`, `io` from `"std:io"`).
+
+### Named import
+
+```txt
+import base from "./math.molt"
+import {base, add_secret} from "./math.molt"
+import print from "std:io"
+```
+
+Loads the module and binds the named exports directly into scope. Use braces for multiple names. Raises a runtime error if the module does not export any of the requested names.
+
+### General rules
 
 - there is no implicit prelude and no ambient builtins
 - `std:` imports load built-in standard modules directly
 - local imported files run in their own module scope with no automatic access to standard modules
 - the imported file does not automatically see the caller's local bindings
-- only explicitly exported top-level bindings are introduced into the current scope
-- non-exported module-local bindings stay private to the module
+- only explicitly exported top-level bindings are visible after import — non-exported bindings stay private to the module
 - repeated imports of the same resolved module path share one cached module instance for that evaluation run
 - direct and indirect import cycles fail with a runtime diagnostic
 - the `import ...` expression itself evaluates to `nil`
 
-Example:
+### Example
 
 ```txt
 # math.molt
-fn add(a, b) = a + b
 base = 40
-export add
+secret = 41
+fn add_secret(x) = x + secret
 export base
+export add_secret
 
-# main.molt
+# main.molt — module import (namespace access)
 import "std:io"
 import "./math.molt"
-print(add(base, 2))
+io.print(math.base)
+io.print(math.add_secret(1))
+
+# main.molt — named import (direct access)
+import "std:io"
+import {base, add_secret} from "./math.molt"
+io.print(base)
+io.print(add_secret(1))
+
+# main.molt — module import with alias
+import "std:io"
+import "./math.molt" as m
+io.print(m.base)
 ```
 
 ## Mutations
